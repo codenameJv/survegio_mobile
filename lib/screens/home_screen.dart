@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../main.dart';
 import '../services/auth_service.dart';
 import 'home_dashboard.dart';
 import 'survey_list_page.dart';
 import 'profile_page.dart';
 import 'settings_page.dart';
-import'../config.dart';
+import '../config.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -30,16 +31,22 @@ class _HomePageState extends State<HomePage> {
         final user = authService.currentUser;
 
         if (user == null) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator(color: Colors.green)),
+          return Scaffold(
+            backgroundColor: AppColors.background,
+            body: const Center(
+              child: CircularProgressIndicator(color: AppColors.primaryGreen),
+            ),
           );
         }
 
         final String avatarId = user['avatar'] ?? '';
         final String avatarUrl =
-        avatarId.isNotEmpty ? '$directusUrl/assets/$avatarId' : '';
+            avatarId.isNotEmpty ? '$directusUrl/assets/$avatarId' : '';
         final String firstName = user['first_name'] ?? '';
         final String lastName = user['last_name'] ?? '';
+        final String initials =
+            '${firstName.isNotEmpty ? firstName[0] : ''}${lastName.isNotEmpty ? lastName[0] : ''}'
+                .toUpperCase();
 
         final List<Widget> pages = [
           HomeDashboard(user: user),
@@ -47,48 +54,40 @@ class _HomePageState extends State<HomePage> {
           const SettingsPage(),
         ];
 
+        final List<String> titles = ['Dashboard', 'Surveys', 'Settings'];
+
         return Scaffold(
+          backgroundColor: AppColors.background,
           appBar: AppBar(
-            title: _selectedIndex == 0
-                ? null
-                : Text(['Home', 'Surveys', 'Settings'][_selectedIndex]),
-            centerTitle: false,
+            title: Text(titles[_selectedIndex]),
+            centerTitle: true,
             automaticallyImplyLeading: false,
-            elevation: _selectedIndex == 0 ? 0 : 1,
-            backgroundColor: _selectedIndex == 0
-                ? const Color(0xFF43A047)
-                : Theme.of(context).scaffoldBackgroundColor,
-            foregroundColor: _selectedIndex == 0 ? Colors.white : null,
             actions: [
-              IconButton(
-                icon: const Icon(Icons.notifications_outlined),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Notifications Page coming soon!')),
-                  );
-                },
-              ),
+              // Profile Avatar
               Padding(
-                padding: const EdgeInsets.only(right: 12.0),
+                padding: const EdgeInsets.only(right: 16),
                 child: GestureDetector(
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                          builder: (context) => const ProfilePage()),
+                        builder: (context) => const ProfilePage(),
+                      ),
                     );
                   },
                   child: CircleAvatar(
                     radius: 18,
-                    backgroundColor: Colors.grey.shade300,
+                    backgroundColor: AppColors.surfaceGreen,
                     backgroundImage:
-                    avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+                        avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
                     child: avatarUrl.isEmpty
                         ? Text(
-                      '${firstName.isNotEmpty ? firstName[0] : ''}${lastName.isNotEmpty ? lastName[0] : ''}',
-                      style: const TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.bold),
-                    )
+                            initials,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primaryGreen,
+                            ),
+                          )
                         : null,
                   ),
                 ),
@@ -96,22 +95,94 @@ class _HomePageState extends State<HomePage> {
             ],
           ),
           body: pages[_selectedIndex],
-          bottomNavigationBar: BottomNavigationBar(
-            currentIndex: _selectedIndex,
-            selectedItemColor: Colors.green,
-            unselectedItemColor: Colors.grey,
-            onTap: _onItemTapped,
-            type: BottomNavigationBarType.fixed,
-            items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-              BottomNavigationBarItem(
-                  icon: Icon(Icons.assignment), label: 'Surveys'),
-              BottomNavigationBarItem(
-                  icon: Icon(Icons.settings), label: 'Settings'),
-            ],
+          bottomNavigationBar: Container(
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, -2),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildNavItem(
+                      index: 0,
+                      icon: Icons.home_outlined,
+                      activeIcon: Icons.home,
+                      label: 'Home',
+                    ),
+                    _buildNavItem(
+                      index: 1,
+                      icon: Icons.assignment_outlined,
+                      activeIcon: Icons.assignment,
+                      label: 'Surveys',
+                    ),
+                    _buildNavItem(
+                      index: 2,
+                      icon: Icons.settings_outlined,
+                      activeIcon: Icons.settings,
+                      label: 'Settings',
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildNavItem({
+    required int index,
+    required IconData icon,
+    required IconData activeIcon,
+    required String label,
+  }) {
+    final isSelected = _selectedIndex == index;
+
+    return GestureDetector(
+      onTap: () => _onItemTapped(index),
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.surfaceGreen : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isSelected ? activeIcon : icon,
+              color: isSelected
+                  ? AppColors.primaryGreen
+                  : AppColors.textSecondary,
+              size: 24,
+            ),
+            if (isSelected) ...[
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.primaryGreen,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

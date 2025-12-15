@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../main.dart';
 import '../services/auth_service.dart';
 import '../services/survey_service.dart';
 import './data_privacy.dart';
@@ -64,8 +65,16 @@ class _SurveyTakingScreenState extends State<SurveyTakingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(widget.surveyTitle),
+        title: Text(
+          widget.surveyTitle,
+          style: const TextStyle(fontSize: 16),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       ),
       body: _hasAgreed ? _buildQuestionsList() : _buildAgreementPendingView(),
       bottomNavigationBar: _hasAgreed ? _buildSubmitButton() : null,
@@ -73,13 +82,19 @@ class _SurveyTakingScreenState extends State<SurveyTakingScreen> {
   }
 
   Widget _buildAgreementPendingView() {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          CircularProgressIndicator(),
-          SizedBox(height: 16),
-          Text("Awaiting data privacy agreement..."),
+          const CircularProgressIndicator(color: AppColors.primaryGreen),
+          const SizedBox(height: 20),
+          const Text(
+            "Awaiting data privacy agreement...",
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 15,
+            ),
+          ),
         ],
       ),
     );
@@ -90,68 +105,207 @@ class _SurveyTakingScreenState extends State<SurveyTakingScreen> {
       future: _questionsFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+            child: CircularProgressIndicator(color: AppColors.primaryGreen),
+          );
         }
 
         if (snapshot.hasError) {
           return Center(
-            child: Text(
-              "Error loading questions:\n${snapshot.error}",
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.red),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withAlpha(26),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.error_outline,
+                      size: 48,
+                      color: AppColors.error,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    "Error loading questions:\n${snapshot.error}",
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
             ),
           );
         }
 
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(
-            child: Text("This survey has no questions."),
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceGreen,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.quiz_outlined,
+                    size: 48,
+                    color: AppColors.primaryGreen,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  "This survey has no questions.",
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 15,
+                  ),
+                ),
+              ],
+            ),
           );
         }
 
         final questions = snapshot.data!;
 
-        return ListView.builder(
-          padding: const EdgeInsets.only(bottom: 16),
-          itemCount: questions.length,
-          itemBuilder: (context, index) {
-            final q = questions[index];
-            final groupInfo = q['group_id'] as Map<String, dynamic>?;
-            final groupTitle = groupInfo?['title'] ?? '';
-
-            return Card(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (groupTitle.isNotEmpty) ...[
+        return Column(
+          children: [
+            // Progress indicator
+            Container(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
                       Text(
-                        groupTitle,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.green.shade700,
-                          fontWeight: FontWeight.w500,
+                        '${_responses.length} of ${questions.length} answered',
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 13,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      Text(
+                        '${((_responses.length / questions.length) * 100).round()}%',
+                        style: const TextStyle(
+                          color: AppColors.primaryGreen,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
                     ],
-                    Text(
-                      "Question ${index + 1}",
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
+                  ),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: _responses.length / questions.length,
+                      minHeight: 6,
+                      backgroundColor: AppColors.divider,
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                          AppColors.primaryGreen),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Questions list
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                itemCount: questions.length,
+                itemBuilder: (context, index) {
+                  final q = questions[index];
+                  final groupInfo = q['group_id'] as Map<String, dynamic>?;
+                  final groupTitle = groupInfo?['title'] ?? '';
+                  final qId = q["id"].toString();
+                  final isAnswered = _responses.containsKey(qId);
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isAnswered
+                            ? AppColors.primaryGreen.withAlpha(128)
+                            : AppColors.divider,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(q["question"] ?? "No question text"),
-                    const SizedBox(height: 16),
-                    _buildAnswerWidget(q),
-                  ],
-                ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Question header
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceGreen,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  'Q${index + 1}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.primaryGreen,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                              if (groupTitle.isNotEmpty) ...[
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    groupTitle,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                              if (isAnswered)
+                                const Icon(
+                                  Icons.check_circle,
+                                  size: 20,
+                                  color: AppColors.primaryGreen,
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          // Question text
+                          Text(
+                            q["question"] ?? "No question text",
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textPrimary,
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          _buildAnswerWidget(q),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
-            );
-          },
+            ),
+          ],
         );
       },
     );
@@ -163,10 +317,6 @@ class _SurveyTakingScreenState extends State<SurveyTakingScreen> {
     final String responseStyle =
         (groupInfo?['response_style'] as String? ?? "").toLowerCase().trim();
 
-    // Available response styles:
-    // - "Rating-Scale Questions" → 5-point rating scale
-    // - "Comment" → text field (short)
-    // - "Open-Ended Question" → text field (long)
     if (responseStyle.contains("rating")) {
       return _buildRatingWidget(qId, question);
     } else if (responseStyle.contains("comment")) {
@@ -174,12 +324,10 @@ class _SurveyTakingScreenState extends State<SurveyTakingScreen> {
     } else if (responseStyle.contains("open")) {
       return _buildOpenEndedWidget(qId, question);
     } else {
-      // Fallback to rating
       return _buildRatingWidget(qId, question);
     }
   }
 
-  /// Rating-Scale Widget (1-5 scale)
   Widget _buildRatingWidget(String questionId, Map<String, dynamic> question) {
     final questionText = question["question"] ?? "";
     final groupInfo = question['group_id'] as Map<String, dynamic>?;
@@ -191,7 +339,6 @@ class _SurveyTakingScreenState extends State<SurveyTakingScreen> {
     return Column(
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: List.generate(scale, (index) {
             final value = index + 1;
             final isSelected = _responses[questionId]?['answer'] == value;
@@ -211,13 +358,21 @@ class _SurveyTakingScreenState extends State<SurveyTakingScreen> {
                   });
                 },
                 child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  margin: EdgeInsets.only(
+                    left: index == 0 ? 0 : 4,
+                    right: index == scale - 1 ? 0 : 4,
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
-                    color: isSelected ? Colors.green : Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(8),
+                    color: isSelected
+                        ? AppColors.primaryGreen
+                        : AppColors.inputFill,
+                    borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: isSelected ? Colors.green.shade700 : Colors.grey.shade300,
+                      color: isSelected
+                          ? AppColors.primaryGreen
+                          : AppColors.divider,
+                      width: isSelected ? 2 : 1,
                     ),
                   ),
                   child: Column(
@@ -227,7 +382,9 @@ class _SurveyTakingScreenState extends State<SurveyTakingScreen> {
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: isSelected ? Colors.white : Colors.black87,
+                          color: isSelected
+                              ? Colors.white
+                              : AppColors.textPrimary,
                         ),
                       ),
                     ],
@@ -237,85 +394,147 @@ class _SurveyTakingScreenState extends State<SurveyTakingScreen> {
             );
           }),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(labels[0], style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-            Text(labels[4], style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+            Text(
+              labels[0],
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            Text(
+              labels[4],
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.textSecondary,
+              ),
+            ),
           ],
         ),
       ],
     );
   }
 
-  /// Comment Widget (short text)
   Widget _buildCommentWidget(String questionId, Map<String, dynamic> question) {
     final questionText = question["question"] ?? "";
     final groupInfo = question['group_id'] as Map<String, dynamic>?;
     final int number = groupInfo?['number'] ?? 0;
 
     return TextFormField(
-      decoration: const InputDecoration(
+      decoration: InputDecoration(
         hintText: "Enter your comment...",
-        border: OutlineInputBorder(),
+        filled: true,
+        fillColor: AppColors.inputFill,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.primaryGreen, width: 2),
+        ),
+        contentPadding: const EdgeInsets.all(16),
       ),
       maxLines: 2,
       initialValue: _responses[questionId]?['answer'] as String?,
       onChanged: (value) {
-        _responses[questionId] = {
-          "questionId": questionId,
-          "questionText": questionText,
-          "questionNumber": number,
-          "answer": value,
-          "answerText": value,
-          "type": "comment",
-        };
+        setState(() {
+          _responses[questionId] = {
+            "questionId": questionId,
+            "questionText": questionText,
+            "questionNumber": number,
+            "answer": value,
+            "answerText": value,
+            "type": "comment",
+          };
+        });
       },
     );
   }
 
-  /// Open-Ended Widget (longer text)
-  Widget _buildOpenEndedWidget(String questionId, Map<String, dynamic> question) {
+  Widget _buildOpenEndedWidget(
+      String questionId, Map<String, dynamic> question) {
     final questionText = question["question"] ?? "";
     final groupInfo = question['group_id'] as Map<String, dynamic>?;
     final int number = groupInfo?['number'] ?? 0;
 
     return TextFormField(
-      decoration: const InputDecoration(
+      decoration: InputDecoration(
         hintText: "Type your detailed response...",
-        border: OutlineInputBorder(),
+        filled: true,
+        fillColor: AppColors.inputFill,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.primaryGreen, width: 2),
+        ),
+        contentPadding: const EdgeInsets.all(16),
       ),
       maxLines: 5,
       initialValue: _responses[questionId]?['answer'] as String?,
       onChanged: (value) {
-        _responses[questionId] = {
-          "questionId": questionId,
-          "questionText": questionText,
-          "questionNumber": number,
-          "answer": value,
-          "answerText": value,
-          "type": "open_ended",
-        };
+        setState(() {
+          _responses[questionId] = {
+            "questionId": questionId,
+            "questionText": questionText,
+            "questionNumber": number,
+            "answer": value,
+            "answerText": value,
+            "type": "open_ended",
+          };
+        });
       },
     );
   }
 
   Widget _buildSubmitButton() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: FilledButton(
-        onPressed: _isSubmitting ? null : _submitSurvey,
-        child: _isSubmitting
-            ? const SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-            : const Text("Submit Survey"),
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(13),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: FilledButton(
+            onPressed: _isSubmitting ? null : _submitSurvey,
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: _isSubmitting
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text(
+                    "Submit Survey",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+          ),
+        ),
       ),
     );
   }
@@ -323,8 +542,12 @@ class _SurveyTakingScreenState extends State<SurveyTakingScreen> {
   Future<void> _submitSurvey() async {
     if (_responses.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Please answer at least one question."),
+        SnackBar(
+          content: const Text("Please answer at least one question."),
+          backgroundColor: AppColors.warning,
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
       return;
@@ -334,13 +557,12 @@ class _SurveyTakingScreenState extends State<SurveyTakingScreen> {
 
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
-      final studentId = authService.currentUser?['student']?['id']?.toString();
+      final studentId =
+          authService.currentUser?['student']?['id']?.toString();
 
       if (studentId == null) {
         throw Exception('Student ID not found');
       }
-
-      // TWO-STEP SUBMISSION FLOW
 
       // STEP 1: Create StudentSurveyResponse record
       final responseId = await _surveyService.createSurveyResponse(
@@ -367,13 +589,15 @@ class _SurveyTakingScreenState extends State<SurveyTakingScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Survey submitted successfully!"),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: const Text("Survey submitted successfully!"),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         );
 
-        // Return true to indicate successful submission
         Navigator.of(context).pop(true);
       }
     } catch (e) {
@@ -383,7 +607,10 @@ class _SurveyTakingScreenState extends State<SurveyTakingScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("Failed to submit survey: $e"),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         );
       }

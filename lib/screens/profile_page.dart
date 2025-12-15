@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../main.dart';
 import '../services/auth_service.dart';
 import '../config.dart';
 
@@ -15,9 +16,10 @@ class ProfilePage extends StatelessWidget {
         final user = authService.currentUser;
 
         if (user == null) {
-          return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
+          return Scaffold(
+            backgroundColor: AppColors.background,
+            body: const Center(
+              child: CircularProgressIndicator(color: AppColors.primaryGreen),
             ),
           );
         }
@@ -42,127 +44,212 @@ class ProfilePage extends StatelessWidget {
           lastName
         ].join(' ');
 
+        final String initials =
+            '${firstName.isNotEmpty ? firstName[0] : ''}${lastName.isNotEmpty ? lastName[0] : ''}'
+                .toUpperCase();
+
         return Scaffold(
-          backgroundColor: Colors.grey[100],
-          body: Column(
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 50),
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF43A047), Color(0xFF2E7D32)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+          backgroundColor: AppColors.background,
+          appBar: AppBar(
+            title: const Text('Profile'),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              children: [
+                // Profile Header
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(32),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.divider),
                   ),
-                  borderRadius: BorderRadius.vertical(
-                    bottom: Radius.circular(30),
-                  ),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircleAvatar(
-                      radius: 55,
-                      backgroundColor: Colors.white,
-                      backgroundImage:
-                      avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-                      child: avatarUrl.isEmpty
-                          ? Text(
-                        '${firstName.isNotEmpty ? firstName[0] : ''}${lastName.isNotEmpty ? lastName[0] : ''}',
-                        style: const TextStyle(
-                            fontSize: 40, color: Color(0xFF2E7D32)),
-                      )
-                          : null,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      fullName,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      email,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.white70,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // User Info Cards
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: ListView(
+                  child: Column(
                     children: [
-                      const Text(
-                        'User Information',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                      // Avatar
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.primaryGreen,
+                            width: 3,
+                          ),
+                        ),
+                        child: CircleAvatar(
+                          radius: 50,
+                          backgroundColor: AppColors.surfaceGreen,
+                          backgroundImage: avatarUrl.isNotEmpty
+                              ? NetworkImage(avatarUrl)
+                              : null,
+                          child: avatarUrl.isEmpty
+                              ? Text(
+                                  initials,
+                                  style: const TextStyle(
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.primaryGreen,
+                                  ),
+                                )
+                              : null,
                         ),
                       ),
-                      const SizedBox(height: 15),
-                      _buildInfoCard(
-                        icon: Icons.person_pin,
+                      const SizedBox(height: 20),
+                      // Name
+                      Text(
+                        fullName,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 6),
+                      // Email
+                      Text(
+                        email,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      // Student Badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceGreen,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.school_outlined,
+                              size: 18,
+                              color: AppColors.primaryGreen,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Student',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.primaryGreen,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Info Section
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.divider),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Account Information',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      _buildInfoRow(
+                        icon: Icons.person_outline,
                         label: 'Full Name',
                         value: fullName,
                       ),
-                      _buildInfoCard(
-                        icon: Icons.confirmation_number,
+                      const Divider(height: 32),
+                      _buildInfoRow(
+                        icon: Icons.badge_outlined,
                         label: 'Student Number',
                         value: studentNumber,
                       ),
-                      _buildInfoCard(
-                        icon: Icons.email,
+                      const Divider(height: 32),
+                      _buildInfoRow(
+                        icon: Icons.email_outlined,
                         label: 'Email Address',
                         value: email,
                       ),
                     ],
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
     );
   }
 
-  Widget _buildInfoCard({
+  Widget _buildInfoRow({
     required IconData icon,
     required String label,
     required String value,
   }) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 15),
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: ListTile(
-        leading: Icon(icon, color: const Color(0xFF43A047)),
-        title: Text(
-          label,
-          style: const TextStyle(color: Colors.grey),
-        ),
-        subtitle: Text(
-          value,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceGreen,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            icon,
+            color: AppColors.primaryGreen,
+            size: 22,
           ),
         ),
-      ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

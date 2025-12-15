@@ -1,11 +1,8 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import '../main.dart';
 import '../services/auth_service.dart';
-
-const Color brandDarkGreen = Color(0xFF09330D);
-const Color brandYellow = Color(0xFFFFCA02);
 
 class SignUpScreen extends StatefulWidget {
   final Map<String, dynamic> verifiedStudentData;
@@ -58,9 +55,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Sign up successful! Please log in to continue.'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: const Text('Sign up successful! Please log in to continue.'),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         );
         Navigator.of(context).popUntil((route) => route.isFirst);
@@ -71,7 +70,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(e.toString().replaceFirst('Exception: ', '')),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         );
       }
@@ -85,71 +86,122 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   Widget build(BuildContext context) {
     final String fullName =
-        '${widget.verifiedStudentData['firstName'] ?? ''} ${widget.verifiedStudentData['middleInitial'] ?? ''} ${widget.verifiedStudentData['lastName'] ?? ''}';
+        '${widget.verifiedStudentData['firstName'] ?? ''} ${widget.verifiedStudentData['middleInitial'] ?? ''} ${widget.verifiedStudentData['lastName'] ?? ''}'
+            .trim();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFCEB),
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 1,
-        centerTitle: true,
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.asset('assets/survegioLogo.png', height: 28),
-            const SizedBox(width: 8),
-            Text(
-              'Survegio',
-              style: GoogleFonts.lato(
-                color: brandDarkGreen,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
+        title: const Text('Create Account'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: Center(
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Form(
+            key: _formKey,
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  'Complete Your Account',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.lato(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: brandDarkGreen,
+                // Header
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceGreen,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryGreen.withAlpha(26),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.verified_user_outlined,
+                          color: AppColors.primaryGreen,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Identity Verified',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.primaryGreen,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Complete your account setup below',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Your details are verified. Just add an email and password.',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.lato(color: const Color(0xFF333333)),
-                ),
+
                 const SizedBox(height: 32),
 
-                _buildReadOnlyField(
-                  label: 'Student Number (Verified)',
-                  value: widget.verifiedStudentData['studentNumber'],
+                // Verified Information Section
+                const Text(
+                  'Verified Information',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
-                const SizedBox(height: 16),
-                _buildReadOnlyField(
-                  label: 'Full Name (Verified)',
+                const SizedBox(height: 12),
+
+                _buildVerifiedInfoCard(
+                  icon: Icons.badge_outlined,
+                  label: 'Student Number',
+                  value: widget.verifiedStudentData['studentNumber'] ?? '',
+                ),
+                const SizedBox(height: 12),
+                _buildVerifiedInfoCard(
+                  icon: Icons.person_outline,
+                  label: 'Full Name',
                   value: fullName,
                 ),
-                const SizedBox(height: 24),
 
-                _buildEditableField(
+                const SizedBox(height: 32),
+
+                // Account Details Section
+                const Text(
+                  'Account Details',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Email Field
+                TextFormField(
                   controller: _emailController,
-                  labelText: 'Email Address',
-                  icon: Icons.email_outlined,
                   keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(
+                    hintText: 'Enter your email address',
+                    prefixIcon: Icon(Icons.email_outlined),
+                  ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter your email';
@@ -161,14 +213,25 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
-                _buildEditableField(
+
+                // Password Field
+                TextFormField(
                   controller: _passwordController,
-                  labelText: 'Password',
-                  icon: Icons.lock_outline,
-                  isPassword: true,
-                  isObscured: _isPasswordObscured,
-                  onObscureToggle: () =>
-                      setState(() => _isPasswordObscured = !_isPasswordObscured),
+                  obscureText: _isPasswordObscured,
+                  textInputAction: TextInputAction.next,
+                  decoration: InputDecoration(
+                    hintText: 'Create a password',
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _isPasswordObscured
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                      ),
+                      onPressed: () =>
+                          setState(() => _isPasswordObscured = !_isPasswordObscured),
+                    ),
+                  ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter your password';
@@ -180,14 +243,26 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
-                _buildEditableField(
+
+                // Confirm Password Field
+                TextFormField(
                   controller: _confirmpasswordController,
-                  labelText: 'Confirm Password',
-                  icon: Icons.lock_outline,
-                  isPassword: true,
-                  isObscured: _isConfirmPasswordObscured,
-                  onObscureToggle: () => setState(() =>
-                  _isConfirmPasswordObscured = !_isConfirmPasswordObscured),
+                  obscureText: _isConfirmPasswordObscured,
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) => _signUp(),
+                  decoration: InputDecoration(
+                    hintText: 'Confirm your password',
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _isConfirmPasswordObscured
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                      ),
+                      onPressed: () => setState(
+                          () => _isConfirmPasswordObscured = !_isConfirmPasswordObscured),
+                    ),
+                  ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please confirm your password';
@@ -198,26 +273,28 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     return null;
                   },
                 ),
+
                 const SizedBox(height: 32),
 
-                _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : FilledButton(
-                  onPressed: _signUp,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: brandYellow,
-                    foregroundColor: brandDarkGreen,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(28),
-                    ),
-                    textStyle: GoogleFonts.lato(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                // Sign Up Button
+                SizedBox(
+                  height: 52,
+                  child: FilledButton(
+                    onPressed: _isLoading ? null : _signUp,
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('Create Account'),
                   ),
-                  child: const Text('Complete Sign Up'),
                 ),
+
+                const SizedBox(height: 24),
               ],
             ),
           ),
@@ -226,63 +303,62 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-
-  Widget _buildReadOnlyField({required String label, required String value}) {
-    return TextFormField(
-      initialValue: value,
-      readOnly: true,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: const Icon(Icons.check_circle, color: Colors.green),
-        filled: true,
-        fillColor: Colors.grey.shade200,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-      ),
-    );
-  }
-
-
-  Widget _buildEditableField({
-    required TextEditingController controller,
-    required String labelText,
+  Widget _buildVerifiedInfoCard({
     required IconData icon,
-    String? Function(String?)? validator,
-    bool isPassword = false,
-    bool isObscured = false,
-    VoidCallback? onObscureToggle,
-    TextInputType? keyboardType,
+    required String label,
+    required String value,
   }) {
-    return TextFormField(
-      controller: controller,
-      validator: validator,
-      keyboardType: keyboardType,
-      obscureText: isObscured,
-      decoration: InputDecoration(
-        labelText: labelText,
-        prefixIcon: Icon(icon, color: brandDarkGreen.withAlpha(153)),
-        suffixIcon: isPassword
-            ? IconButton(
-          icon: Icon(isObscured ? Icons.visibility_off : Icons.visibility),
-          onPressed: onObscureToggle,
-        )
-            : null,
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: brandDarkGreen, width: 2.0),
-        ),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.inputFill,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.success.withAlpha(26),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              icon,
+              color: AppColors.success,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(
+            Icons.check_circle,
+            color: AppColors.success,
+            size: 20,
+          ),
+        ],
       ),
     );
   }

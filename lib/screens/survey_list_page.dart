@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../main.dart';
 import '../services/auth_service.dart';
 import '../services/survey_service.dart';
 import '../services/eligibility_service.dart';
@@ -111,13 +112,23 @@ class _SurveyListScreenState extends State<SurveyListScreen>
       children: [
         // Tab Bar
         Container(
-          color: Theme.of(context).scaffoldBackgroundColor,
+          margin: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+          decoration: BoxDecoration(
+            color: AppColors.inputFill,
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: TabBar(
             controller: _tabController,
-            labelColor: Colors.green.shade700,
-            unselectedLabelColor: Colors.grey.shade600,
-            indicatorColor: Colors.green.shade700,
-            indicatorWeight: 3,
+            labelColor: AppColors.surface,
+            unselectedLabelColor: AppColors.textSecondary,
+            indicator: BoxDecoration(
+              color: AppColors.primaryGreen,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            indicatorSize: TabBarIndicatorSize.tab,
+            dividerColor: Colors.transparent,
+            padding: const EdgeInsets.all(4),
+            labelPadding: EdgeInsets.zero,
             tabs: [
               Tab(
                 child: Row(
@@ -130,15 +141,15 @@ class _SurveyListScreenState extends State<SurveyListScreen>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.orange.shade100,
-                          borderRadius: BorderRadius.circular(12),
+                          color: AppColors.warning.withAlpha(51),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
                           '${_pendingSurveys.length}',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: Colors.orange.shade700,
+                            color: AppColors.warning,
                           ),
                         ),
                       ),
@@ -157,15 +168,15 @@ class _SurveyListScreenState extends State<SurveyListScreen>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.green.shade100,
-                          borderRadius: BorderRadius.circular(12),
+                          color: AppColors.success.withAlpha(51),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
                           '${_completedSurveys.length}',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: Colors.green.shade700,
+                            color: AppColors.success,
                           ),
                         ),
                       ),
@@ -181,12 +192,13 @@ class _SurveyListScreenState extends State<SurveyListScreen>
         Expanded(
           child: _isLoading
               ? const Center(
-                  child: CircularProgressIndicator(color: Colors.green))
+                  child:
+                      CircularProgressIndicator(color: AppColors.primaryGreen))
               : _errorMessage != null
                   ? _buildErrorView()
                   : RefreshIndicator(
                       onRefresh: _loadSurveys,
-                      color: Colors.green,
+                      color: AppColors.primaryGreen,
                       child: TabBarView(
                         controller: _tabController,
                         children: [
@@ -203,21 +215,36 @@ class _SurveyListScreenState extends State<SurveyListScreen>
   Widget _buildErrorView() {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.grey.shade400),
-            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.error.withAlpha(26),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.error_outline,
+                size: 48,
+                color: AppColors.error,
+              ),
+            ),
+            const SizedBox(height: 20),
             Text(
               _errorMessage!,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600),
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 15,
+              ),
             ),
-            const SizedBox(height: 16),
-            FilledButton.tonal(
+            const SizedBox(height: 24),
+            FilledButton.icon(
               onPressed: _loadSurveys,
-              child: const Text('Retry'),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
             ),
           ],
         ),
@@ -232,18 +259,29 @@ class _SurveyListScreenState extends State<SurveyListScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              isPending ? Icons.inbox_outlined : Icons.check_circle_outline,
-              size: 64,
-              color: Colors.grey.shade400,
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: isPending
+                    ? AppColors.surfaceGreen
+                    : AppColors.success.withAlpha(26),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isPending
+                    ? Icons.inbox_outlined
+                    : Icons.check_circle_outline,
+                size: 48,
+                color: isPending ? AppColors.primaryGreen : AppColors.success,
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Text(
               isPending ? 'No pending surveys' : 'No completed surveys yet',
-              style: TextStyle(
-                color: Colors.grey.shade600,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
                 fontSize: 16,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 8),
@@ -251,8 +289,8 @@ class _SurveyListScreenState extends State<SurveyListScreen>
               isPending
                   ? "You're all caught up!"
                   : 'Complete surveys to see them here',
-              style: TextStyle(
-                color: Colors.grey.shade500,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
                 fontSize: 14,
               ),
             ),
@@ -263,7 +301,7 @@ class _SurveyListScreenState extends State<SurveyListScreen>
 
     return ListView.builder(
       itemCount: surveys.length,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 24),
       itemBuilder: (context, index) {
         final survey = surveys[index];
         return _buildSurveyCard(survey, isCompleted: !isPending);
@@ -287,7 +325,8 @@ class _SurveyListScreenState extends State<SurveyListScreen>
       final teacher = targetClass?['teacher_id'];
       teacherId = teacher?['id']?.toString();
       final teacherName = teacher != null
-          ? '${teacher['first_name'] ?? ''} ${teacher['last_name'] ?? ''}'.trim()
+          ? '${teacher['first_name'] ?? ''} ${teacher['last_name'] ?? ''}'
+              .trim()
           : '';
       subtitle =
           '$course $section${teacherName.isNotEmpty ? ' - $teacherName' : ''}';
@@ -305,179 +344,200 @@ class _SurveyListScreenState extends State<SurveyListScreen>
         try {
           final date = DateTime.parse(submittedAt);
           completedAt =
-              '${date.month}/${date.day}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+              '${date.month}/${date.day}/${date.year}';
         } catch (_) {}
       }
     }
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () async {
-          if (!isCompleted) {
-            // Navigate to survey taking screen
-            final result = await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SurveyTakingScreen(
-                  surveyId: survey['id'].toString(),
-                  surveyTitle: title,
-                  classId: survey['target_class_id']?.toString(),
-                  officeId: survey['target_office']?['id']?.toString(),
-                  evaluatedTeacherId: teacherId,
-                ),
-              ),
-            );
+    final isClass = targetType == 'class';
+    final accentColor = isClass ? AppColors.info : const Color(0xFF9C27B0);
 
-            // Refresh list if survey was submitted
-            if (result == true) {
-              _loadSurveys();
-            }
-          }
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Icon
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: isCompleted
-                        ? Colors.green.shade100
-                        : (targetType == 'class'
-                            ? Colors.blue.shade100
-                            : Colors.purple.shade100),
-                    child: Icon(
-                      isCompleted
-                          ? Icons.check
-                          : (targetType == 'class'
-                              ? Icons.class_
-                              : Icons.business),
-                      color: isCompleted
-                          ? Colors.green.shade700
-                          : (targetType == 'class'
-                              ? Colors.blue.shade700
-                              : Colors.purple.shade700),
-                    ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () async {
+            if (!isCompleted) {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SurveyTakingScreen(
+                    surveyId: survey['id'].toString(),
+                    surveyTitle: title,
+                    classId: survey['target_class_id']?.toString(),
+                    officeId: survey['target_office']?['id']?.toString(),
+                    evaluatedTeacherId: teacherId,
                   ),
-                  const SizedBox(width: 12),
-                  // Title and subtitle
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (subtitle.isNotEmpty) ...[
-                          const SizedBox(height: 4),
+                ),
+              );
+
+              if (result == true) {
+                _loadSurveys();
+              }
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Left accent bar
+                    Container(
+                      width: 4,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: isCompleted ? AppColors.success : accentColor,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    // Icon
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: isCompleted
+                            ? AppColors.success.withAlpha(26)
+                            : accentColor.withAlpha(26),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        isCompleted
+                            ? Icons.check
+                            : (isClass
+                                ? Icons.class_outlined
+                                : Icons.business_outlined),
+                        color: isCompleted ? AppColors.success : accentColor,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    // Title and subtitle
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           Text(
-                            subtitle,
-                            style: TextStyle(
-                              color: Colors.grey.shade600,
-                              fontSize: 14,
+                            title,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                              color: AppColors.textPrimary,
                             ),
-                            maxLines: 1,
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
+                          if (subtitle.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              subtitle,
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 13,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
+                    ),
+                    // Arrow for pending
+                    if (!isCompleted)
+                      const Icon(
+                        Icons.chevron_right,
+                        color: AppColors.textSecondary,
+                      ),
+                  ],
+                ),
+
+                // Instruction preview
+                if (instruction.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 18),
+                    child: Text(
+                      instruction,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 13,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  // Arrow for pending
-                  if (!isCompleted)
-                    Icon(Icons.chevron_right, color: Colors.grey.shade400),
                 ],
-              ),
 
-              // Instruction preview
-              if (instruction.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(
-                  instruction,
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 13,
+                const SizedBox(height: 14),
+
+                // Status row
+                Padding(
+                  padding: const EdgeInsets.only(left: 18),
+                  child: Row(
+                    children: [
+                      // Type badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: accentColor.withAlpha(26),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          isClass ? 'Class' : 'Office',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: accentColor,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Status badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: isCompleted
+                              ? AppColors.success.withAlpha(26)
+                              : AppColors.warning.withAlpha(26),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          isCompleted ? 'Completed' : 'Pending',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: isCompleted
+                                ? AppColors.success
+                                : AppColors.warning,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      // Completed date
+                      if (completedAt != null)
+                        Text(
+                          completedAt,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                    ],
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ],
-
-              const SizedBox(height: 12),
-
-              // Status row
-              Row(
-                children: [
-                  // Type badge
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: targetType == 'class'
-                          ? Colors.blue.shade50
-                          : Colors.purple.shade50,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      targetType == 'class' ? 'Class' : 'Office',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: targetType == 'class'
-                            ? Colors.blue.shade700
-                            : Colors.purple.shade700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Status badge
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isCompleted
-                          ? Colors.green.shade50
-                          : Colors.orange.shade50,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      isCompleted ? 'Completed' : 'Pending',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: isCompleted
-                            ? Colors.green.shade700
-                            : Colors.orange.shade700,
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  // Completed date
-                  if (completedAt != null)
-                    Text(
-                      completedAt,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade500,
-                      ),
-                    ),
-                ],
-              ),
-            ],
+            ),
           ),
         ),
       ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../main.dart';
 import '../services/auth_service.dart';
 import '../services/survey_service.dart';
 import '../services/eligibility_service.dart';
@@ -44,12 +45,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
     });
 
     try {
-      // DEBUG: Log the user object to see its structure
-      debugPrint('=== DASHBOARD DEBUG ===');
-      debugPrint('Full user object: ${widget.user}');
-      debugPrint('User student field: ${widget.user?['student']}');
-      debugPrint('User student_id field: ${widget.user?['student_id']}');
-
       // Try different ways to get student ID
       var studentId = widget.user?['student']?['id']?.toString();
 
@@ -58,21 +53,18 @@ class _HomeDashboardState extends State<HomeDashboard> {
         final studentField = widget.user?['student'];
         if (studentField != null && studentField is! Map) {
           studentId = studentField.toString();
-          debugPrint('Student ID from direct field: $studentId');
         }
       }
 
-      // Also check student_id field (some APIs use this)
+      // Also check student_id field
       if (studentId == null) {
         studentId = widget.user?['student_id']?.toString();
-        debugPrint('Student ID from student_id field: $studentId');
       }
-
-      debugPrint('Final studentId: $studentId');
 
       if (studentId == null) {
         setState(() {
-          _errorMessage = 'Student information not found. Please check that your account is linked to a student record.';
+          _errorMessage =
+              'Student information not found. Please check that your account is linked to a student record.';
           _isLoading = false;
         });
         return;
@@ -113,7 +105,8 @@ class _HomeDashboardState extends State<HomeDashboard> {
       final total = eligibleSurveys.length;
       final completed = completedResponses.length;
       final pending = pendingSurveys.length;
-      final completionRate = total > 0 ? ((completed / total) * 100).round() : 0;
+      final completionRate =
+          total > 0 ? ((completed / total) * 100).round() : 0;
 
       setState(() {
         _currentTerm = currentTerm;
@@ -140,28 +133,43 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
     if (_isLoading) {
       return const Center(
-        child: CircularProgressIndicator(color: Colors.green),
+        child: CircularProgressIndicator(color: AppColors.primaryGreen),
       );
     }
 
     if (_errorMessage != null) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.error_outline, size: 64, color: Colors.grey.shade400),
-              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.error_outline,
+                  size: 48,
+                  color: AppColors.error,
+                ),
+              ),
+              const SizedBox(height: 20),
               Text(
                 _errorMessage!,
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey.shade600),
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 15,
+                ),
               ),
-              const SizedBox(height: 16),
-              FilledButton.tonal(
+              const SizedBox(height: 24),
+              FilledButton.icon(
                 onPressed: _loadDashboardData,
-                child: const Text('Retry'),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
               ),
             ],
           ),
@@ -171,46 +179,60 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
     return RefreshIndicator(
       onRefresh: _loadDashboardData,
-      color: Colors.green,
+      color: AppColors.primaryGreen,
       child: ListView(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(24),
         children: [
           _buildGreetingHeader(firstName),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
 
           // Academic Term Card
           if (_currentTerm != null) ...[
             _buildAcademicTermCard(),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
           ],
 
           // Stats Cards
           _buildStatsSection(),
-          const SizedBox(height: 24),
+          const SizedBox(height: 28),
 
           // Active Surveys Section
           _buildActiveSurveysSection(),
+          const SizedBox(height: 24),
         ],
       ),
     );
   }
 
   Widget _buildGreetingHeader(String firstName) {
+    final hour = DateTime.now().hour;
+    String greeting;
+    if (hour < 12) {
+      greeting = 'Good morning';
+    } else if (hour < 17) {
+      greeting = 'Good afternoon';
+    } else {
+      greeting = 'Good evening';
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Hi, $firstName!',
+          '$greeting,',
           style: const TextStyle(
-            color: Colors.black87,
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
+            color: AppColors.textSecondary,
+            fontSize: 16,
           ),
         ),
         const SizedBox(height: 4),
-        const Text(
-          'Welcome to your dashboard.',
-          style: TextStyle(color: Colors.black54, fontSize: 16),
+        Text(
+          firstName,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ],
     );
@@ -220,52 +242,53 @@ class _HomeDashboardState extends State<HomeDashboard> {
     final semester = _currentTerm?['semester'] ?? '';
     final schoolYear = _currentTerm?['schoolYear'] ?? '';
 
-    return Card(
-      color: Colors.green.shade50,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.green.shade200),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceGreen,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primaryGreen.withOpacity(0.2)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.green.shade100,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(Icons.school, color: Colors.green.shade700, size: 24),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.primaryGreen.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Current Academic Term',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.green.shade700,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$semester - $schoolYear',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ],
-              ),
+            child: const Icon(
+              Icons.school_outlined,
+              color: AppColors.primaryGreen,
+              size: 24,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Current Academic Term',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.primaryGreen,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$semester - $schoolYear',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -275,22 +298,22 @@ class _HomeDashboardState extends State<HomeDashboard> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Survey Statistics',
+          'Overview',
           style: TextStyle(
             fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
               child: _buildStatCard(
                 title: 'Total',
                 value: '${_stats['total']}',
-                icon: Icons.assignment,
-                color: Colors.blue,
+                icon: Icons.assignment_outlined,
+                color: AppColors.info,
               ),
             ),
             const SizedBox(width: 12),
@@ -298,23 +321,22 @@ class _HomeDashboardState extends State<HomeDashboard> {
               child: _buildStatCard(
                 title: 'Pending',
                 value: '${_stats['pending']}',
-                icon: Icons.pending_actions,
-                color: Colors.orange,
+                icon: Icons.pending_actions_outlined,
+                color: AppColors.warning,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _buildStatCard(
-                title: 'Completed',
+                title: 'Done',
                 value: '${_stats['completed']}',
-                icon: Icons.check_circle,
-                color: Colors.green,
+                icon: Icons.check_circle_outline,
+                color: AppColors.success,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        // Completion Rate Card
+        const SizedBox(height: 16),
         _buildCompletionRateCard(),
       ],
     );
@@ -326,33 +348,41 @@ class _HomeDashboardState extends State<HomeDashboard> {
     required IconData icon,
     required Color color,
   }) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
             ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-              ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: color,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -360,57 +390,57 @@ class _HomeDashboardState extends State<HomeDashboard> {
   Widget _buildCompletionRateCard() {
     final rate = _stats['completionRate'] as int;
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Completion Rate',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: LinearProgressIndicator(
-                      value: rate / 100,
-                      minHeight: 10,
-                      backgroundColor: Colors.grey.shade200,
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(Colors.green.shade600),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 16),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                '$rate%',
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Completion Rate',
                 style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green.shade700,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textPrimary,
                 ),
               ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceGreen,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '$rate%',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryGreen,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: rate / 100,
+              minHeight: 8,
+              backgroundColor: AppColors.divider,
+              valueColor:
+                  const AlwaysStoppedAnimation<Color>(AppColors.primaryGreen),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -423,17 +453,17 @@ class _HomeDashboardState extends State<HomeDashboard> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
-              'Active Surveys',
+              'Pending Surveys',
               style: TextStyle(
                 fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
               ),
             ),
             if (_activeSurveys.isNotEmpty)
               TextButton(
                 onPressed: () {
-                  // Navigate to surveys tab - this will be handled by parent
+                  // Navigate to surveys tab
                 },
                 child: const Text('View All'),
               ),
@@ -441,44 +471,55 @@ class _HomeDashboardState extends State<HomeDashboard> {
         ),
         const SizedBox(height: 12),
         if (_activeSurveys.isEmpty)
-          Card(
-            elevation: 1,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Center(
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.check_circle_outline,
-                      size: 48,
-                      color: Colors.grey.shade400,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'No pending surveys',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      "You're all caught up!",
-                      style: TextStyle(
-                        color: Colors.grey.shade500,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          )
+          _buildEmptyState()
         else
           ...(_activeSurveys.map((survey) => _buildSurveyCard(survey))),
       ],
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceGreen,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.check_circle_outline,
+              size: 40,
+              color: AppColors.primaryGreen,
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'All caught up!',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'No pending surveys at the moment.',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -493,74 +534,115 @@ class _HomeDashboardState extends State<HomeDashboard> {
       final course = targetClass?['course_id']?['courseCode'] ?? '';
       final teacher = targetClass?['teacher_id'];
       final teacherName = teacher != null
-          ? '${teacher['first_name'] ?? ''} ${teacher['last_name'] ?? ''}'.trim()
+          ? '${teacher['first_name'] ?? ''} ${teacher['last_name'] ?? ''}'
+              .trim()
           : '';
-      subtitle = '$course $section${teacherName.isNotEmpty ? ' - $teacherName' : ''}';
+      subtitle =
+          '$course $section${teacherName.isNotEmpty ? ' - $teacherName' : ''}';
     } else if (targetType == 'office') {
       final office = survey['target_office'];
       subtitle = office?['name'] ?? 'Office Evaluation';
     }
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(12),
-        leading: CircleAvatar(
-          backgroundColor: targetType == 'class'
-              ? Colors.blue.shade100
-              : Colors.purple.shade100,
-          child: Icon(
-            targetType == 'class' ? Icons.class_ : Icons.business,
-            color:
-                targetType == 'class' ? Colors.blue.shade700 : Colors.purple.shade700,
+    final isClass = targetType == 'class';
+    final accentColor = isClass ? AppColors.info : const Color(0xFF9C27B0);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            // Navigate to survey detail/taking screen
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 4,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: accentColor,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: accentColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    isClass ? Icons.class_outlined : Icons.business_outlined,
+                    color: accentColor,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                          color: AppColors.textPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (subtitle.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: accentColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          isClass ? 'Class' : 'Office',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: accentColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right,
+                  color: AppColors.textSecondary,
+                ),
+              ],
+            ),
           ),
         ),
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (subtitle.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: Colors.grey.shade600),
-              ),
-            ],
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: targetType == 'class'
-                    ? Colors.blue.shade50
-                    : Colors.purple.shade50,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                targetType == 'class' ? 'Class' : 'Office',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: targetType == 'class'
-                      ? Colors.blue.shade700
-                      : Colors.purple.shade700,
-                ),
-              ),
-            ),
-          ],
-        ),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () {
-          // Navigate to survey detail/taking screen
-        },
       ),
     );
   }
