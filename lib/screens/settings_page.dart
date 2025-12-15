@@ -107,14 +107,16 @@ class SettingsPage extends StatelessWidget {
                             child: const Text('Cancel'),
                           ),
                           FilledButton(
-                            onPressed: () {
-                              authService.logout();
-                              Navigator.of(dialogContext).pushAndRemoveUntil(
-                                MaterialPageRoute(
-                                  builder: (context) => const SignInScreen(),
-                                ),
-                                (Route<dynamic> route) => false,
-                              );
+                            onPressed: () async {
+                              await authService.logout();
+                              if (dialogContext.mounted) {
+                                Navigator.of(dialogContext).pushAndRemoveUntil(
+                                  MaterialPageRoute(
+                                    builder: (context) => const SignInScreen(),
+                                  ),
+                                  (Route<dynamic> route) => false,
+                                );
+                              }
                             },
                             style: FilledButton.styleFrom(
                               backgroundColor: AppColors.error,

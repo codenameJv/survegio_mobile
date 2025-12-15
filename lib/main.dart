@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'screens/splash_screen.dart';
+import 'screens/sign_in_screen.dart';
 import 'services/auth_service.dart';
 import 'services/theme_provider.dart';
+
+// Global navigator key for navigation from anywhere
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 // App Color Palette
 class AppColors {
@@ -36,10 +40,38 @@ void main() {
       statusBarIconBrightness: Brightness.dark,
     ),
   );
+
+  // Create AuthService with session expiry handler
+  final authService = AuthService();
+  authService.onSessionExpired = () {
+    // Navigate to login and show session expired message
+    final context = navigatorKey.currentContext;
+    if (context != null) {
+      navigatorKey.currentState?.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const SignInScreen()),
+        (route) => false,
+      );
+
+      // Show snackbar after navigation
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final scaffoldMessenger = ScaffoldMessenger.maybeOf(context);
+        scaffoldMessenger?.showSnackBar(
+          SnackBar(
+            content: const Text('Your session has expired. Please sign in again.'),
+            backgroundColor: AppColors.warning,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      });
+    }
+  };
+
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthService()),
+        ChangeNotifierProvider.value(value: authService),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
       child: const SurvegioApp(),
@@ -56,6 +88,7 @@ class SurvegioApp extends StatelessWidget {
       builder: (context, themeProvider, child) {
         return MaterialApp(
           title: 'Survegio',
+          navigatorKey: navigatorKey,
           themeMode: themeProvider.themeMode,
           theme: _buildLightTheme(),
           darkTheme: _buildDarkTheme(),
