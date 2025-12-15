@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../services/auth_service.dart';
+import '../services/survey_service.dart';
+import '../services/eligibility_service.dart';
 
 class HomeDashboard extends StatefulWidget {
   final Map<String, dynamic>? user;
@@ -9,17 +13,185 @@ class HomeDashboard extends StatefulWidget {
 }
 
 class _HomeDashboardState extends State<HomeDashboard> {
+  late SurveyService _surveyService;
+  late EligibilityService _eligibilityService;
+
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  Map<String, dynamic>? _currentTerm;
+  Map<String, dynamic> _stats = {
+    'total': 0,
+    'pending': 0,
+    'completed': 0,
+    'completionRate': 0,
+  };
+  List<Map<String, dynamic>> _activeSurveys = [];
+
+  @override
+  void initState() {
+    super.initState();
+    final token = Provider.of<AuthService>(context, listen: false).token;
+    _surveyService = SurveyService(token);
+    _eligibilityService = EligibilityService(token);
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // DEBUG: Log the user object to see its structure
+      debugPrint('=== DASHBOARD DEBUG ===');
+      debugPrint('Full user object: ${widget.user}');
+      debugPrint('User student field: ${widget.user?['student']}');
+      debugPrint('User student_id field: ${widget.user?['student_id']}');
+
+      // Try different ways to get student ID
+      var studentId = widget.user?['student']?['id']?.toString();
+
+      // If student is not an object, it might be just the ID directly
+      if (studentId == null) {
+        final studentField = widget.user?['student'];
+        if (studentField != null && studentField is! Map) {
+          studentId = studentField.toString();
+          debugPrint('Student ID from direct field: $studentId');
+        }
+      }
+
+      // Also check student_id field (some APIs use this)
+      if (studentId == null) {
+        studentId = widget.user?['student_id']?.toString();
+        debugPrint('Student ID from student_id field: $studentId');
+      }
+
+      debugPrint('Final studentId: $studentId');
+
+      if (studentId == null) {
+        setState(() {
+          _errorMessage = 'Student information not found. Please check that your account is linked to a student record.';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Fetch all data in parallel
+      final results = await Future.wait([
+        _surveyService.fetchCurrentAcademicTerm(),
+        _surveyService.fetchStudentEvaluationSurveys(),
+        _surveyService.fetchStudentClasses(studentId),
+        _surveyService.fetchStudentSurveyResponses(studentId),
+        _surveyService.fetchStudentDepartment(studentId),
+      ]);
+
+      final currentTerm = results[0] as Map<String, dynamic>?;
+      final allSurveys = results[1] as List<Map<String, dynamic>>;
+      final enrolledClasses = results[2] as List<Map<String, dynamic>>;
+      final completedResponses = results[3] as List<Map<String, dynamic>>;
+      final department = results[4] as Map<String, dynamic>?;
+
+      // Get eligible surveys
+      final eligibleSurveys = await _eligibilityService.getEligibleSurveys(
+        studentId: studentId,
+        allSurveys: allSurveys,
+        enrolledClasses: enrolledClasses,
+        studentDepartmentId: department?['id']?.toString(),
+      );
+
+      // Get pending surveys
+      final pendingSurveys =
+          await _eligibilityService.getPendingEligibleSurveys(
+        studentId: studentId,
+        eligibleSurveys: eligibleSurveys,
+        completedResponses: completedResponses,
+      );
+
+      // Calculate stats
+      final total = eligibleSurveys.length;
+      final completed = completedResponses.length;
+      final pending = pendingSurveys.length;
+      final completionRate = total > 0 ? ((completed / total) * 100).round() : 0;
+
+      setState(() {
+        _currentTerm = currentTerm;
+        _stats = {
+          'total': total,
+          'pending': pending,
+          'completed': completed,
+          'completionRate': completionRate,
+        };
+        _activeSurveys = pendingSurveys.take(5).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to load dashboard data: $e';
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final String firstName = widget.user?['first_name'] ?? 'User';
 
-    return ListView(
-      padding: const EdgeInsets.all(20.0),
-      children: [
-        _buildGreetingHeader(firstName),
-        const SizedBox(height: 20),
-      ],
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.green),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, size: 64, color: Colors.grey.shade400),
+              const SizedBox(height: 16),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.tonal(
+                onPressed: _loadDashboardData,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadDashboardData,
+      color: Colors.green,
+      child: ListView(
+        padding: const EdgeInsets.all(20.0),
+        children: [
+          _buildGreetingHeader(firstName),
+          const SizedBox(height: 20),
+
+          // Academic Term Card
+          if (_currentTerm != null) ...[
+            _buildAcademicTermCard(),
+            const SizedBox(height: 20),
+          ],
+
+          // Stats Cards
+          _buildStatsSection(),
+          const SizedBox(height: 24),
+
+          // Active Surveys Section
+          _buildActiveSurveysSection(),
+        ],
+      ),
     );
   }
 
@@ -41,6 +213,355 @@ class _HomeDashboardState extends State<HomeDashboard> {
           style: TextStyle(color: Colors.black54, fontSize: 16),
         ),
       ],
+    );
+  }
+
+  Widget _buildAcademicTermCard() {
+    final semester = _currentTerm?['semester'] ?? '';
+    final schoolYear = _currentTerm?['schoolYear'] ?? '';
+
+    return Card(
+      color: Colors.green.shade50,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.green.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.green.shade100,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(Icons.school, color: Colors.green.shade700, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Current Academic Term',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.green.shade700,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$semester - $schoolYear',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Survey Statistics',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                title: 'Total',
+                value: '${_stats['total']}',
+                icon: Icons.assignment,
+                color: Colors.blue,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildStatCard(
+                title: 'Pending',
+                value: '${_stats['pending']}',
+                icon: Icons.pending_actions,
+                color: Colors.orange,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildStatCard(
+                title: 'Completed',
+                value: '${_stats['completed']}',
+                icon: Icons.check_circle,
+                color: Colors.green,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        // Completion Rate Card
+        _buildCompletionRateCard(),
+      ],
+    );
+  }
+
+  Widget _buildStatCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 28),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompletionRateCard() {
+    final rate = _stats['completionRate'] as int;
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Completion Rate',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: LinearProgressIndicator(
+                      value: rate / 100,
+                      minHeight: 10,
+                      backgroundColor: Colors.grey.shade200,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(Colors.green.shade600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '$rate%',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green.shade700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActiveSurveysSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Active Surveys',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            if (_activeSurveys.isNotEmpty)
+              TextButton(
+                onPressed: () {
+                  // Navigate to surveys tab - this will be handled by parent
+                },
+                child: const Text('View All'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (_activeSurveys.isEmpty)
+          Card(
+            elevation: 1,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.check_circle_outline,
+                      size: 48,
+                      color: Colors.grey.shade400,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'No pending surveys',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "You're all caught up!",
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          )
+        else
+          ...(_activeSurveys.map((survey) => _buildSurveyCard(survey))),
+      ],
+    );
+  }
+
+  Widget _buildSurveyCard(Map<String, dynamic> survey) {
+    final title = survey['title'] ?? 'Untitled Survey';
+    final targetType = survey['target_type'] ?? '';
+
+    String subtitle = '';
+    if (targetType == 'class') {
+      final targetClass = survey['target_class'];
+      final section = targetClass?['section'] ?? '';
+      final course = targetClass?['course_id']?['courseCode'] ?? '';
+      final teacher = targetClass?['teacher_id'];
+      final teacherName = teacher != null
+          ? '${teacher['first_name'] ?? ''} ${teacher['last_name'] ?? ''}'.trim()
+          : '';
+      subtitle = '$course $section${teacherName.isNotEmpty ? ' - $teacherName' : ''}';
+    } else if (targetType == 'office') {
+      final office = survey['target_office'];
+      subtitle = office?['name'] ?? 'Office Evaluation';
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        contentPadding: const EdgeInsets.all(12),
+        leading: CircleAvatar(
+          backgroundColor: targetType == 'class'
+              ? Colors.blue.shade100
+              : Colors.purple.shade100,
+          child: Icon(
+            targetType == 'class' ? Icons.class_ : Icons.business,
+            color:
+                targetType == 'class' ? Colors.blue.shade700 : Colors.purple.shade700,
+          ),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (subtitle.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
+            ],
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: targetType == 'class'
+                    ? Colors.blue.shade50
+                    : Colors.purple.shade50,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                targetType == 'class' ? 'Class' : 'Office',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: targetType == 'class'
+                      ? Colors.blue.shade700
+                      : Colors.purple.shade700,
+                ),
+              ),
+            ),
+          ],
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () {
+          // Navigate to survey detail/taking screen
+        },
+      ),
     );
   }
 }

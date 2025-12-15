@@ -29,7 +29,7 @@ class ProfilePage extends StatelessWidget {
         final String email = user['email'] ?? 'N/A';
 
         final String studentNumber =
-            user['student']?['studentNumber'] ?? 'Not available';
+            user['student']?['student_number'] ?? 'Not available';
 
         // Avatar
         final String avatarUrl = user['avatar'] != null

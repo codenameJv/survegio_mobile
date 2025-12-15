@@ -29,8 +29,17 @@ class AuthService extends ChangeNotifier {
     if (storedToken != null) {
       _token = storedToken;
       _dio.options.headers['Authorization'] = 'Bearer $_token';
-      await _fetchCurrentUser();
-      notifyListeners();
+      try {
+        await _fetchCurrentUser();
+        notifyListeners();
+      } catch (e) {
+        // Token expired or invalid - clear and require fresh login
+        log('Stored token invalid, clearing: $e', name: 'AuthService');
+        await _clearTokenFromStorage();
+        _token = null;
+        _user = null;
+        _dio.options.headers.remove('Authorization');
+      }
     }
   }
 
@@ -44,15 +53,136 @@ class AuthService extends ChangeNotifier {
     await prefs.remove('auth_token');
   }
 
+  // ------------------------------------------------------------
+  // LINK STUDENT TO USER (Vue-style: search students by user_id/email/name)
+  // ------------------------------------------------------------
+  Future<void> _linkStudentToUser() async {
+    if (_user == null) return;
+
+    final userId = _user!['id'];
+    final userEmail = _user!['email'];
+    final firstName = _user!['first_name'];
+    final lastName = _user!['last_name'];
+
+    log('=== LINKING STUDENT TO USER ===', name: 'AuthService');
+    log('User ID: $userId', name: 'AuthService');
+    log('User Email: $userEmail', name: 'AuthService');
+    log('User Name: $firstName $lastName', name: 'AuthService');
+
+    Map<String, dynamic>? studentRecord;
+
+    // Strategy 1: Search by user_id (direct link in students table)
+    try {
+      log('Strategy 1: Searching by user_id...', name: 'AuthService');
+      final res = await _dio.get(
+        '$directusUrl/items/students',
+        queryParameters: {
+          'filter[user_id][_eq]': userId,
+          'fields': 'id,student_number,first_name,last_name,middle_name,email,user_id,deparment_id,class_id',
+          'limit': '1',
+        },
+      );
+      final data = res.data['data'] as List;
+      if (data.isNotEmpty) {
+        studentRecord = data.first;
+        log('Strategy 1 SUCCESS: Found student by user_id', name: 'AuthService');
+      }
+    } catch (e) {
+      log('Strategy 1 failed: $e', name: 'AuthService');
+    }
+
+    // Strategy 2: Search by email
+    if (studentRecord == null && userEmail != null) {
+      try {
+        log('Strategy 2: Searching by email...', name: 'AuthService');
+        final res = await _dio.get(
+          '$directusUrl/items/students',
+          queryParameters: {
+            'filter[email][_eq]': userEmail,
+            'fields': 'id,student_number,first_name,last_name,middle_name,email,user_id,deparment_id,class_id',
+            'limit': '1',
+          },
+        );
+        final data = res.data['data'] as List;
+        if (data.isNotEmpty) {
+          studentRecord = data.first;
+          log('Strategy 2 SUCCESS: Found student by email', name: 'AuthService');
+        }
+      } catch (e) {
+        log('Strategy 2 failed: $e', name: 'AuthService');
+      }
+    }
+
+    // Strategy 3: Search by name
+    if (studentRecord == null && firstName != null && lastName != null) {
+      try {
+        log('Strategy 3: Searching by name...', name: 'AuthService');
+        final res = await _dio.get(
+          '$directusUrl/items/students',
+          queryParameters: {
+            'filter[first_name][_eq]': firstName,
+            'filter[last_name][_eq]': lastName,
+            'fields': 'id,student_number,first_name,last_name,middle_name,email,user_id,deparment_id,class_id',
+            'limit': '1',
+          },
+        );
+        final data = res.data['data'] as List;
+        if (data.isNotEmpty) {
+          studentRecord = data.first;
+          log('Strategy 3 SUCCESS: Found student by name', name: 'AuthService');
+        }
+      } catch (e) {
+        log('Strategy 3 failed: $e', name: 'AuthService');
+      }
+    }
+
+    // If found, enrich user object with student data
+    if (studentRecord != null) {
+      _user!['student'] = studentRecord;
+      _user!['student_id'] = studentRecord['id'];
+
+      log('Student record found: ${studentRecord['id']}', name: 'AuthService');
+      log('Student: ${studentRecord['first_name']} ${studentRecord['last_name']}', name: 'AuthService');
+
+      // If student found by name/email but not yet linked, link it now
+      if (studentRecord['user_id'] == null) {
+        try {
+          log('Linking student to user...', name: 'AuthService');
+          await _dio.patch(
+            '$directusUrl/items/students/${studentRecord['id']}',
+            data: {'user_id': userId},
+          );
+          log('Successfully linked student ${studentRecord['id']} to user $userId', name: 'AuthService');
+        } catch (e) {
+          log('Could not link student to user: $e', name: 'AuthService');
+        }
+      }
+
+      log('=== STUDENT LINKED SUCCESSFULLY ===', name: 'AuthService');
+    } else {
+      log('=== NO STUDENT RECORD FOUND ===', name: 'AuthService');
+    }
+  }
+
   Future<void> _fetchCurrentUser() async {
     if (_token == null) return;
 
     try {
       final response = await _dio.get(
-        '$directusUrl/users/me?fields=*,avatar.*,student.*',
+        '$directusUrl/users/me?fields=*,avatar.*,student.*,student_id.*',
       );
 
       _user = response.data['data'];
+
+      // DEBUG: Log the user data structure
+      log('=== FETCH CURRENT USER ===', name: 'AuthService');
+      log('User data: $_user', name: 'AuthService');
+      log('student field: ${_user?['student']}', name: 'AuthService');
+      log('student_id field: ${_user?['student_id']}', name: 'AuthService');
+ 
+      // Link student to user (Vue-style: search by user_id → email → name)
+      await _linkStudentToUser();
+
       notifyListeners();
     } catch (e) {
       log('Failed to fetch user: $e', name: 'AuthService');
@@ -283,28 +413,49 @@ class AuthService extends ChangeNotifier {
 // ------------------------------------------------------------
   Future<void> signIn(String email, String password) async {
     try {
+      // DEBUG: Log the login attempt
+      log('=== LOGIN ATTEMPT ===', name: 'AuthService');
+      log('Directus URL: $directusUrl', name: 'AuthService');
+      log('Email: $email', name: 'AuthService');
+
+      final loginUrl = '$directusUrl/auth/login';
+      log('Full login URL: $loginUrl', name: 'AuthService');
+
       final response = await _dio.post(
-        '$directusUrl/auth/login',
+        loginUrl,
         data: {'email': email, 'password': password},
       );
 
+      log('Login response status: ${response.statusCode}', name: 'AuthService');
+      log('Login response data: ${response.data}', name: 'AuthService');
+
       final data = response.data['data'];
       final accessToken = data['access_token'];
+
+      log('Access token received: ${accessToken != null ? 'YES' : 'NO'}', name: 'AuthService');
 
       // 1) Temporarily store token to check role
       _dio.options.headers['Authorization'] = 'Bearer $accessToken';
 
       // 2) Fetch user info INCLUDING role
+      log('Fetching user info...', name: 'AuthService');
       final userResponse = await _dio.get(
         '$directusUrl/users/me?fields=id,email,role.*,student.*',
       );
 
+      log('User response status: ${userResponse.statusCode}', name: 'AuthService');
+      log('User response data: ${userResponse.data}', name: 'AuthService');
+
       final user = userResponse.data['data'];
       final userRole = user['role']?['name'] ?? '';
+
+      log('User role: $userRole', name: 'AuthService');
+      log('User student data: ${user['student']}', name: 'AuthService');
 
       // 3) Block non-students
       if (userRole.toLowerCase() != 'student') {
         _dio.options.headers.remove('Authorization');
+        log('LOGIN BLOCKED: Role is not student', name: 'AuthService');
         throw Exception("Only students are allowed to log in.");
       }
 
@@ -316,12 +467,21 @@ class AuthService extends ChangeNotifier {
 
       await _fetchCurrentUser();
 
+      log('=== LOGIN SUCCESS ===', name: 'AuthService');
       notifyListeners();
     } on DioException catch (e) {
+      log('=== LOGIN FAILED (DioException) ===', name: 'AuthService');
+      log('Error type: ${e.type}', name: 'AuthService');
+      log('Error message: ${e.message}', name: 'AuthService');
+      log('Response status: ${e.response?.statusCode}', name: 'AuthService');
+      log('Response data: ${e.response?.data}', name: 'AuthService');
+
       final msg =
           e.response?.data['errors']?[0]?['message'] ?? 'Invalid credentials.';
       throw Exception(msg);
     } catch (e) {
+      log('=== LOGIN FAILED (Exception) ===', name: 'AuthService');
+      log('Error: $e', name: 'AuthService');
       throw Exception(e.toString().replaceFirst("Exception: ", ""));
     }
   }

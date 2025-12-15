@@ -4,18 +4,9 @@ import '../services/auth_service.dart';
 import 'sign_in_screen.dart';
 import 'terms_of_use.dart';
 import 'privacy_policy.dart';
-import 'edit_profile_page.dart';
 
-class SettingsPage extends StatefulWidget {
+class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
-
-  @override
-  State<SettingsPage> createState() => _SettingsPageState();
-}
-
-class _SettingsPageState extends State<SettingsPage> {
-  bool _pushNotificationsEnabled = true;
-  bool _emailNotificationsEnabled = false;
 
   Widget _buildSectionTitle(String title) {
     return Padding(
@@ -49,57 +40,10 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context, listen: false);
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       body: ListView(
         children: [
-          // --- ACCOUNT SECTION ---
-          _buildSectionTitle('Account'),
-          _buildSettingsTile(
-            icon: Icons.edit_outlined,
-            title: 'Edit Profile',
-            subtitle: 'Update name, student number, etc.',
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (context) => const EditProfilePage()),
-              );
-            },
-          ),
-
-          // --- APP PREFERENCES SECTION ---
-          _buildSectionTitle('App Preferences'),
-          SwitchListTile(
-            title: const Text('Dark Mode'),
-            secondary: Icon(Icons.dark_mode_outlined, color: Colors.grey.shade600),
-            value: isDarkMode,
-            onChanged: (val) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Theme switching will be implemented soon!')),
-              );
-            },
-          ),
-
-
-          // --- NOTIFICATIONS SECTION ---
-          _buildSectionTitle('Notifications'),
-          SwitchListTile(
-            title: const Text('Push Notifications'),
-            secondary: Icon(Icons.notifications_active_outlined, color: Colors.grey.shade600),
-            value: _pushNotificationsEnabled,
-            onChanged: (val) {
-              setState(() => _pushNotificationsEnabled = val);
-            },
-          ),
-          SwitchListTile(
-            title: const Text('Email Notifications'),
-            secondary: Icon(Icons.email_outlined, color: Colors.grey.shade600),
-            value: _emailNotificationsEnabled,
-            onChanged: (val) {
-              setState(() => _emailNotificationsEnabled = val);
-            },
-          ),
-
           // --- ABOUT SECTION ---
           _buildSectionTitle('About'),
           _buildSettingsTile(
@@ -121,42 +65,64 @@ class _SettingsPageState extends State<SettingsPage> {
             },
           ),
 
-          const SizedBox(height: 20),
-          Center(
-            child: TextButton(
-              onPressed: () {
-                authService.logout();
+          const SizedBox(height: 30),
 
-                if (context.mounted) {
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (context) => const SignInScreen()),
-                        (Route<dynamic> route) => false,
-                  );
-                }
+          // Logout Button
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: OutlinedButton.icon(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Logout'),
+                    content: const Text('Are you sure you want to logout?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
+                      FilledButton(
+                        onPressed: () {
+                          authService.logout();
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(builder: (context) => const SignInScreen()),
+                            (Route<dynamic> route) => false,
+                          );
+                        },
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.red,
+                        ),
+                        child: const Text('Logout'),
+                      ),
+                    ],
+                  ),
+                );
               },
-              child: const Text(
-                "Logout",
-                style: TextStyle(
-                  color: Colors.red,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+              icon: const Icon(Icons.logout, color: Colors.red),
+              label: const Text(
+                'Logout',
+                style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.red),
+                padding: const EdgeInsets.symmetric(vertical: 12),
               ),
             ),
           ),
 
           const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24.0, horizontal: 16.0),
+            padding: EdgeInsets.symmetric(vertical: 30.0, horizontal: 16.0),
             child: Column(
               children: [
                 Text(
-                  'App Version 1.0.0',
+                  'Survegio v1.0.0',
                   style: TextStyle(color: Colors.grey),
                 ),
-                SizedBox(height: 8),
+                SizedBox(height: 4),
                 Text(
                   'Developed by CCT Students',
-                  style: TextStyle(color: Colors.grey),
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
                 ),
               ],
             ),

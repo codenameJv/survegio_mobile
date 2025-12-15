@@ -1,5 +1,4 @@
 class AppConfig {
-  static const String directusUrl = 'http://10.0.2.2:8061';
+  // Replace with your Directus instance URL or IP address for physical device access
+  static const String directusUrl = 'http://192.168.1.33:8061'; 
 }
-// emulator 'http://10.0.2.2:8061';
-// android 'http://192.168.101.36:8061';
