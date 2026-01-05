@@ -1,9 +1,7 @@
-import 'dart:convert';
 import 'dart:developer';
 import '../config.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService extends ChangeNotifier {
@@ -314,142 +312,6 @@ class AuthService extends ChangeNotifier {
   }
 
   // ------------------------------------------------------------
-  // STUDENT VERIFICATION
-  // ------------------------------------------------------------
-  Future<Map<String, dynamic>> verifyStudent({
-    required String studentId,
-    required String firstName,
-    required String lastName,
-    required String middleInitial,
-  }) async {
-    try {
-      final sid = studentId.trim();
-      final fn = firstName.trim();
-      final ln = lastName.trim();
-      final mi = middleInitial.trim();
-
-      final url = Uri.parse(
-        '$directusUrl/items/students'
-        '?filter[studentNumber][_eq]=$sid'
-        '&filter[firstName][_eq]=$fn'
-        '&filter[lastName][_eq]=$ln'
-        '&fields=id,studentNumber,firstName,lastName,middleInitial',
-      );
-
-      final response = await http.get(url);
-
-      if (response.statusCode >= 300) {
-        final err = json.decode(response.body);
-        final msg = err['errors']?[0]?['message'] ?? 'Server error.';
-        throw Exception(msg);
-      }
-
-      final decoded = json.decode(response.body);
-      final data = decoded['data'] as List?;
-
-      if (data == null || data.isEmpty) {
-        throw Exception('No matching student record found.');
-      }
-
-      final student = data.first;
-      final recordMI = (student['middleInitial'] ?? '').toString().trim();
-
-      if (recordMI.isNotEmpty) {
-        if (mi.isEmpty) {
-          throw Exception('Middle Initial is required for this student.');
-        }
-        if (mi != recordMI) {
-          throw Exception('Middle Initial does not match school record.');
-        }
-      } else {
-        if (mi.isNotEmpty) {
-          throw Exception(
-            'Your school record shows **no middle name**. Leave Middle Initial empty.',
-          );
-        }
-      }
-
-      return {
-        'studentNumber': student['studentNumber'],
-        'firstName': student['firstName'],
-        'middleInitial': recordMI,
-        'lastName': student['lastName'],
-        'studentId': student['id'],
-      };
-    } catch (e) {
-      log('Error in verifyStudent: $e', name: 'AuthService');
-      throw Exception(e.toString().replaceFirst('Exception: ', ''));
-    }
-  }
-
-  // ------------------------------------------------------------
-  // SIGN UP
-  // ------------------------------------------------------------
-  Future<void> signUp({
-    required String studentId,
-    required String firstName,
-    String? middleInitial,
-    required String lastName,
-    required String email,
-    required String password,
-  }) async {
-    try {
-      // Lookup student record
-      final studentLookup = Uri.parse(
-        '$directusUrl/items/students'
-        '?filter[studentNumber][_eq]=$studentId'
-        '&fields=id',
-      );
-
-      final lookupResponse = await http.get(studentLookup);
-      final lookupData = json.decode(lookupResponse.body)['data'] as List;
-
-      if (lookupData.isEmpty) {
-        throw Exception('Student record not found during sign-up.');
-      }
-
-      final String studentPrimaryKey = lookupData[0]['id'].toString();
-
-      // Student role UUID
-      const String userRoleId = '9d994507-5b03-418f-b594-27e2dd7db837';
-
-      // Use a separate Dio instance without auth header
-      final signupDio = Dio();
-      final response = await signupDio.post(
-        '$directusUrl/users',
-        data: {
-          'first_name': firstName,
-          'last_name': lastName,
-          'middle_initial': middleInitial,
-          'email': email,
-          'password': password,
-          'role': userRoleId,
-          'student_id': studentPrimaryKey,
-        },
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 204) {
-        try {
-          await signupDio.patch(
-            '$directusUrl/items/students/$studentPrimaryKey',
-            data: {'user_created': true},
-          );
-        } catch (_) {
-          log('Warning: Could not update user_created', name: 'AuthService');
-        }
-      } else {
-        throw Exception('Failed to create user.');
-      }
-    } on DioException catch (e) {
-      final errorMsg =
-          e.response?.data['errors']?[0]?['message'] ?? 'Sign-up failed.';
-      throw Exception(errorMsg);
-    } catch (e) {
-      throw Exception('Unexpected error: $e');
-    }
-  }
-
-  // ------------------------------------------------------------
   // UPDATE USER DETAILS
   // ------------------------------------------------------------
   Future<void> updateUser(Map<String, dynamic> data) async {
@@ -498,26 +360,6 @@ class AuthService extends ChangeNotifier {
       final msg = e.response?.data['errors']?[0]?['message'] ??
           'Failed to update student number.';
       throw Exception(msg);
-    }
-  }
-
-  // ------------------------------------------------------------
-  // REQUEST PASSWORD RESET
-  // ------------------------------------------------------------
-  Future<void> requestPasswordReset({required String email}) async {
-    const resetUrl = 'https://survegio.app/reset-password';
-
-    try {
-      await http.post(
-        Uri.parse('$directusUrl/auth/password/request'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'email': email,
-          'reset_url': resetUrl,
-        }),
-      );
-    } catch (e) {
-      log('Password reset request error: $e', name: 'AuthService');
     }
   }
 
@@ -613,6 +455,49 @@ class AuthService extends ChangeNotifier {
     _user = null;
     await _clearTokenFromStorage();
     notifyListeners();
+  }
+
+  // ------------------------------------------------------------
+  // CHANGE PASSWORD
+  // ------------------------------------------------------------
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    if (_user == null) {
+      throw Exception('User not authenticated.');
+    }
+
+    final userEmail = _user!['email'];
+
+    try {
+      // First verify current password by attempting a login
+      final verifyDio = Dio();
+      try {
+        await verifyDio.post(
+          '$directusUrl/auth/login',
+          data: {
+            'email': userEmail,
+            'password': currentPassword,
+            'mode': 'json',
+          },
+        );
+      } on DioException {
+        throw Exception('Current password is incorrect.');
+      }
+
+      // If verification successful, update password
+      await _dio.patch(
+        '/users/me',
+        data: {'password': newPassword},
+      );
+
+      log('Password changed successfully', name: 'AuthService');
+    } on DioException catch (e) {
+      final msg =
+          e.response?.data['errors']?[0]?['message'] ?? 'Failed to change password.';
+      throw Exception(msg);
+    }
   }
 
   // ------------------------------------------------------------

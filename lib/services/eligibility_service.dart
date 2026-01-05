@@ -38,22 +38,21 @@ class EligibilityService {
   }
 
   /// Check if student is eligible for office-based survey based on assignment_mode
-  /// - 'all': Any enrolled student is eligible
-  /// - 'department': Students are pre-assigned to survey's students array based on department
-  /// - Other modes: Check if student is in the survey's student list
-  Future<bool> isEligibleForOfficeSurvey({
+  /// - 'all': Any student with at least one enrolled class is eligible
+  /// - 'department'/'specific': Students are pre-assigned to survey's students array
+  bool isEligibleForOfficeSurvey({
     required String studentId,
     required Map<String, dynamic> survey,
     required String assignmentMode,
+    required int enrolledClassCount,
     String? studentDepartmentId,
-  }) async {
-    // If assignment_mode is 'all', any student is eligible
+  }) {
+    // If assignment_mode is 'all', student must have at least one enrolled class
     if (assignmentMode.toLowerCase() == 'all') {
-      return true;
+      return enrolledClassCount > 0;
     }
 
-    // For 'department' and other modes, students are pre-assigned in the students junction
-    // Check if this student is in the survey's students array
+    // For 'department' and 'specific' modes, check if student is in the survey's students array
     final students = survey['students'] as List? ?? [];
 
     // If students array is empty but mode isn't 'all', not eligible
@@ -78,21 +77,57 @@ class EligibilityService {
     required List<Map<String, dynamic>> allSurveys,
     required List<Map<String, dynamic>> enrolledClasses,
     String? studentDepartmentId,
+    String? studentYearLevel,
   }) async {
     final eligibleSurveys = <Map<String, dynamic>>[];
     final enrolledClassIds =
         enrolledClasses.map((c) => c['id'].toString()).toSet();
 
+    log('EligibilityService: Student $studentId enrolled in ${enrolledClasses.length} classes',
+        name: 'EligibilityService');
+    log('EligibilityService: Enrolled class IDs: $enrolledClassIds',
+        name: 'EligibilityService');
+    log('EligibilityService: Student year level: $studentYearLevel',
+        name: 'EligibilityService');
+    log('EligibilityService: Processing ${allSurveys.length} surveys',
+        name: 'EligibilityService');
+
     for (final survey in allSurveys) {
       final evaluationType =
-          (survey['evaluation_type'] ?? '').toString().toLowerCase();
+          (survey['evaluation_type'] ?? 'class').toString().toLowerCase();
+
+      log('EligibilityService: Survey "${survey['title']}" type: $evaluationType',
+          name: 'EligibilityService');
+
+      // Check year level targeting (matches web app logic)
+      final targetYearLevels = survey['target_year_levels'] as List?;
+      if (targetYearLevels != null && targetYearLevels.isNotEmpty) {
+        if (studentYearLevel == null ||
+            !targetYearLevels.contains(studentYearLevel)) {
+          log('EligibilityService: Skipping survey - year level mismatch. Target: $targetYearLevels, Student: $studentYearLevel',
+              name: 'EligibilityService');
+          continue;
+        }
+      }
 
       if (evaluationType == 'class') {
         // Class-based survey: check if student is enrolled in any of the survey's classes
         final surveyClasses = survey['classes'] as List? ?? [];
 
+        log('EligibilityService: Survey "${survey['title']}" has ${surveyClasses.length} classes',
+            name: 'EligibilityService');
+
+        // Track if we found any eligible class for this student
+        bool foundEligibleClass = false;
+
         for (final surveyClass in surveyClasses) {
+          log('EligibilityService: Raw surveyClass junction entry: $surveyClass',
+              name: 'EligibilityService');
+
           final classData = surveyClass['classes_id'];
+          log('EligibilityService: classes_id value: $classData (type: ${classData.runtimeType})',
+              name: 'EligibilityService');
+
           String? classId;
 
           if (classData is Map) {
@@ -101,20 +136,72 @@ class EligibilityService {
             classId = classData?.toString();
           }
 
+          log('EligibilityService: Extracted class ID: $classId',
+              name: 'EligibilityService');
+          log('EligibilityService: Enrolled class IDs: $enrolledClassIds',
+              name: 'EligibilityService');
+          log('EligibilityService: Is enrolled in this class? ${enrolledClassIds.contains(classId)}',
+              name: 'EligibilityService');
+
           if (classId != null && enrolledClassIds.contains(classId)) {
+            foundEligibleClass = true;
             // Student is enrolled in this class - add as eligible
             final eligibleSurvey = Map<String, dynamic>.from(survey);
             eligibleSurvey['target_type'] = 'class';
             eligibleSurvey['target_class_id'] = classId;
 
-            // Get class details from enrolled classes
-            final classDetails = enrolledClasses.firstWhere(
+            // Get class details from enrolled classes or from survey data
+            var classDetails = enrolledClasses.firstWhere(
               (c) => c['id'].toString() == classId,
-              orElse: () => {},
+              orElse: () => <String, dynamic>{},
             );
+
+            // If class details not found in enrolled classes, use survey's class data
+            if (classDetails.isEmpty && classData is Map) {
+              classDetails = Map<String, dynamic>.from(classData);
+            }
+
             eligibleSurvey['target_class'] = classDetails;
 
             eligibleSurveys.add(eligibleSurvey);
+          }
+        }
+
+        // Fallback: Check if student is directly assigned to this survey's students list
+        if (!foundEligibleClass && surveyClasses.isNotEmpty) {
+          final surveyStudents = survey['students'] as List? ?? [];
+          final isDirectlyAssigned = surveyStudents.any((s) {
+            final sid = s['students_id'];
+            if (sid is Map) {
+              return sid['id']?.toString() == studentId;
+            }
+            return sid?.toString() == studentId;
+          });
+
+          if (isDirectlyAssigned) {
+            log('EligibilityService: Student directly assigned to class survey, adding all survey classes',
+                name: 'EligibilityService');
+
+            // Add each class in the survey as eligible
+            for (final surveyClass in surveyClasses) {
+              final classData = surveyClass['classes_id'];
+              String? classId;
+
+              if (classData is Map) {
+                classId = classData['id']?.toString();
+              } else {
+                classId = classData?.toString();
+              }
+
+              if (classId != null) {
+                final eligibleSurvey = Map<String, dynamic>.from(survey);
+                eligibleSurvey['target_type'] = 'class';
+                eligibleSurvey['target_class_id'] = classId;
+                eligibleSurvey['target_class'] =
+                    classData is Map ? Map<String, dynamic>.from(classData) : {};
+                eligibleSurveys.add(eligibleSurvey);
+              }
+            }
           }
         }
       } else if (evaluationType == 'office') {
@@ -122,10 +209,11 @@ class EligibilityService {
         final assignmentMode =
             (survey['assignment_mode'] ?? 'all').toString().toLowerCase();
 
-        final isEligible = await isEligibleForOfficeSurvey(
+        final isEligible = isEligibleForOfficeSurvey(
           studentId: studentId,
           survey: survey,
           assignmentMode: assignmentMode,
+          enrolledClassCount: enrolledClasses.length,
           studentDepartmentId: studentDepartmentId,
         );
 

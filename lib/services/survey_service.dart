@@ -125,14 +125,38 @@ class SurveyService {
   /// Fetch StudentEvaluationSurvey items (active surveys with eligibility data)
   Future<List<Map<String, dynamic>>> fetchStudentEvaluationSurveys() async {
     try {
-      final url = '$_directusUrl/items/StudentEvaluationSurvey'
-          '?filter[is_active][_eq]=Active'
-          '&fields=*,office_id.*,academic_term_id.*,students.students_id,classes.classes_id,classes.classes_id.section,classes.classes_id.course_id.*,classes.classes_id.teacher_id.*,question_group.*,question_group.questions.*';
-
-      final response = await _dio.get(url);
+      // Match the web app's query exactly
+      final response = await _dio.get(
+        '$_directusUrl/items/StudentEvaluationSurvey',
+        queryParameters: {
+          'filter[is_active][_eq]': 'Active',
+          'fields': [
+            '*',
+            'target_year_levels',
+            'office_id.id',
+            'office_id.name',
+            'students.students_id',
+            'classes.classes_id.*',  // Get all class fields
+            'classes.classes_id.course_id.*',
+            'classes.classes_id.teacher_id.*',
+            'question_group.*',
+            'question_group.questions.*',
+          ].join(','),
+        },
+      );
 
       if (response.statusCode == 200) {
-        return (response.data['data'] as List).cast<Map<String, dynamic>>();
+        final surveys = (response.data['data'] as List).cast<Map<String, dynamic>>();
+        log('Fetched ${surveys.length} active surveys', name: 'SurveyService');
+
+        // Log survey details for debugging
+        for (final s in surveys) {
+          final classes = s['classes'] as List? ?? [];
+          log('Survey "${s['title']}": type=${s['evaluation_type']}, classes=${classes.length}',
+              name: 'SurveyService');
+        }
+
+        return surveys;
       }
       return [];
     } on DioException catch (e) {
@@ -163,6 +187,43 @@ class SurveyService {
     }
   }
 
+  /// Fetch recent activity (last 5 completed surveys with titles)
+  Future<List<Map<String, dynamic>>> fetchRecentActivity(
+      String studentId) async {
+    try {
+      final url = '$_directusUrl/items/StudentSurveyResponses'
+          '?filter[student_id][_eq]=$studentId'
+          '&fields=id,submitted_at,survey_id.title'
+          '&sort=-submitted_at'
+          '&limit=5';
+
+      final response = await _dio.get(url);
+
+      if (response.statusCode == 200) {
+        final data = response.data['data'] as List;
+        return data.map((r) {
+          final surveyId = r['survey_id'];
+          String surveyTitle;
+          if (surveyId is Map) {
+            surveyTitle = surveyId['title'] ?? 'Survey';
+          } else {
+            surveyTitle = 'Survey #$surveyId';
+          }
+          return {
+            'id': r['id'],
+            'surveyTitle': surveyTitle,
+            'submittedAt': r['submitted_at'],
+          };
+        }).toList().cast<Map<String, dynamic>>();
+      }
+      return [];
+    } on DioException catch (e) {
+      log('Error fetching recent activity: ${e.response?.data}',
+          name: 'SurveyService');
+      return [];
+    }
+  }
+
   /// Fetch current active academic term
   Future<Map<String, dynamic>?> fetchCurrentAcademicTerm() async {
     try {
@@ -188,41 +249,63 @@ class SurveyService {
   Future<List<Map<String, dynamic>>> fetchStudentClasses(
       String studentId) async {
     try {
-      final url = '$_directusUrl/items/classes'
-          '?filter[student_id][students_id][_eq]=$studentId'
-          '&fields=id,section,course_id.*,teacher_id.*,acadTerm_id.*';
+      log('Fetching classes for student ID: $studentId', name: 'SurveyService');
 
-      final response = await _dio.get(url);
+      // Use params structure like the web app does
+      final response = await _dio.get(
+        '$_directusUrl/items/classes',
+        queryParameters: {
+          'filter[student_id][students_id][_eq]': studentId,
+          'fields': 'id,section,course_id.*,teacher_id.*,acadTerm_id.*',
+        },
+      );
 
       if (response.statusCode == 200) {
-        return (response.data['data'] as List).cast<Map<String, dynamic>>();
+        var classes = (response.data['data'] as List).cast<Map<String, dynamic>>();
+        log('Found ${classes.length} classes for student $studentId',
+            name: 'SurveyService');
+
+        // Log class details for debugging
+        for (final c in classes) {
+          log('  Class: id=${c['id']}, section=${c['section']}',
+              name: 'SurveyService');
+        }
+
+        return classes;
       }
       return [];
     } on DioException catch (e) {
-      log('Error fetching student classes: ${e.response?.data}',
+      log('Error fetching student classes: ${e.response?.statusCode} - ${e.response?.data}',
           name: 'SurveyService');
       throw Exception("Failed to fetch student classes.");
     }
   }
 
-  /// Fetch student's department
-  Future<Map<String, dynamic>?> fetchStudentDepartment(
+  /// Fetch student's department and year level
+  Future<Map<String, dynamic>?> fetchStudentInfo(
       String studentId) async {
     try {
       final url = '$_directusUrl/items/students/$studentId'
-          '?fields=id,deparment_id.*';
+          '?fields=id,deparment_id.*,year_level';
 
       final response = await _dio.get(url);
 
       if (response.statusCode == 200) {
-        return response.data['data']?['deparment_id'];
+        return response.data['data'];
       }
       return null;
     } on DioException catch (e) {
-      log('Error fetching student department: ${e.response?.data}',
+      log('Error fetching student info: ${e.response?.data}',
           name: 'SurveyService');
       return null;
     }
+  }
+
+  /// Fetch student's department (backwards compatibility)
+  Future<Map<String, dynamic>?> fetchStudentDepartment(
+      String studentId) async {
+    final info = await fetchStudentInfo(studentId);
+    return info?['deparment_id'];
   }
 
   /// Check if student has completed a specific survey for a target

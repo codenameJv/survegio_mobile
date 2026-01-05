@@ -4,6 +4,7 @@ import '../main.dart';
 import '../services/auth_service.dart';
 import '../services/survey_service.dart';
 import '../services/eligibility_service.dart';
+import './survey_taking_screen.dart';
 
 class HomeDashboard extends StatefulWidget {
   final Map<String, dynamic>? user;
@@ -28,6 +29,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
     'completionRate': 0,
   };
   List<Map<String, dynamic>> _activeSurveys = [];
+  List<Map<String, dynamic>> _recentActivity = [];
 
   @override
   void initState() {
@@ -76,14 +78,19 @@ class _HomeDashboardState extends State<HomeDashboard> {
         _surveyService.fetchStudentEvaluationSurveys(),
         _surveyService.fetchStudentClasses(studentId),
         _surveyService.fetchStudentSurveyResponses(studentId),
-        _surveyService.fetchStudentDepartment(studentId),
+        _surveyService.fetchStudentInfo(studentId),
+        _surveyService.fetchRecentActivity(studentId),
       ]);
 
       final currentTerm = results[0] as Map<String, dynamic>?;
       final allSurveys = results[1] as List<Map<String, dynamic>>;
       final enrolledClasses = results[2] as List<Map<String, dynamic>>;
       final completedResponses = results[3] as List<Map<String, dynamic>>;
-      final department = results[4] as Map<String, dynamic>?;
+      final studentInfo = results[4] as Map<String, dynamic>?;
+      final recentActivity = results[5] as List<Map<String, dynamic>>;
+
+      final department = studentInfo?['deparment_id'];
+      final yearLevel = studentInfo?['year_level']?.toString();
 
       // Get eligible surveys
       final eligibleSurveys = await _eligibilityService.getEligibleSurveys(
@@ -91,6 +98,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
         allSurveys: allSurveys,
         enrolledClasses: enrolledClasses,
         studentDepartmentId: department?['id']?.toString(),
+        studentYearLevel: yearLevel,
       );
 
       // Get pending surveys
@@ -101,12 +109,19 @@ class _HomeDashboardState extends State<HomeDashboard> {
         completedResponses: completedResponses,
       );
 
-      // Calculate stats
+      // Calculate stats - only count responses for eligible surveys
+      final eligibleSurveyIds = eligibleSurveys
+          .map((s) => s['id']?.toString())
+          .where((id) => id != null)
+          .toSet();
+      final completedForEligible = completedResponses
+          .where((r) => eligibleSurveyIds.contains(r['survey_id']?.toString()))
+          .length;
       final total = eligibleSurveys.length;
-      final completed = completedResponses.length;
+      final completed = completedForEligible;
       final pending = pendingSurveys.length;
       final completionRate =
-          total > 0 ? ((completed / total) * 100).round() : 0;
+          total > 0 ? ((completed / total) * 100).clamp(0, 100).round() : 0;
 
       setState(() {
         _currentTerm = currentTerm;
@@ -117,6 +132,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
           'completionRate': completionRate,
         };
         _activeSurveys = pendingSurveys.take(5).toList();
+        _recentActivity = recentActivity;
         _isLoading = false;
       });
     } catch (e) {
@@ -198,6 +214,10 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
           // Active Surveys Section
           _buildActiveSurveysSection(),
+          const SizedBox(height: 28),
+
+          // Recent Activity Section
+          _buildRecentActivitySection(),
           const SizedBox(height: 24),
         ],
       ),
@@ -503,7 +523,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
           ),
           const SizedBox(height: 16),
           const Text(
-            'All caught up!',
+            'No Pending Surveys',
             style: TextStyle(
               color: AppColors.textPrimary,
               fontSize: 16,
@@ -512,7 +532,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'No pending surveys at the moment.',
+            'You have completed all available surveys.',
             style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 14,
@@ -526,10 +546,10 @@ class _HomeDashboardState extends State<HomeDashboard> {
   Widget _buildSurveyCard(Map<String, dynamic> survey) {
     final title = survey['title'] ?? 'Untitled Survey';
     final targetType = survey['target_type'] ?? '';
+    final targetClass = survey['target_class'] as Map<String, dynamic>?;
 
     String subtitle = '';
     if (targetType == 'class') {
-      final targetClass = survey['target_class'];
       final section = targetClass?['section'] ?? '';
       final course = targetClass?['course_id']?['courseCode'] ?? '';
       final teacher = targetClass?['teacher_id'];
@@ -557,8 +577,39 @@ class _HomeDashboardState extends State<HomeDashboard> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () {
-            // Navigate to survey detail/taking screen
+          onTap: () async {
+            // Get teacher info for receipt
+            final teacher = targetClass?['teacher_id'];
+            final teacherFullName = teacher != null
+                ? '${teacher['first_name'] ?? ''} ${teacher['last_name'] ?? ''}'
+                    .trim()
+                : null;
+            final teacherId = teacher?['id']?.toString();
+
+            // Get office name
+            final office = survey['target_office'];
+            final officeFullName = office?['name']?.toString();
+
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SurveyTakingScreen(
+                  surveyId: survey['id'].toString(),
+                  surveyTitle: title,
+                  classId: survey['target_class_id']?.toString(),
+                  officeId: office?['id']?.toString(),
+                  evaluatedTeacherId: teacherId,
+                  className: subtitle.isNotEmpty ? subtitle : null,
+                  teacherName: teacherFullName,
+                  officeName: officeFullName,
+                  instruction: survey['instruction']?.toString(),
+                ),
+              ),
+            );
+
+            if (result == true) {
+              _loadDashboardData();
+            }
           },
           borderRadius: BorderRadius.circular(16),
           child: Padding(
@@ -645,5 +696,168 @@ class _HomeDashboardState extends State<HomeDashboard> {
         ),
       ),
     );
+  }
+
+  Widget _buildRecentActivitySection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Recent Activity',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (_recentActivity.isEmpty)
+          _buildRecentActivityEmptyState()
+        else
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.divider),
+            ),
+            child: Column(
+              children: _recentActivity.asMap().entries.map((entry) {
+                final index = entry.key;
+                final activity = entry.value;
+                final isLast = index == _recentActivity.length - 1;
+                return _buildRecentActivityItem(activity, isLast);
+              }).toList(),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildRecentActivityEmptyState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.divider.withValues(alpha: 0.5),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.inbox_outlined,
+              size: 40,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'No recent activity',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Your completed surveys will appear here.',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentActivityItem(Map<String, dynamic> activity, bool isLast) {
+    final surveyTitle = activity['surveyTitle'] ?? 'Survey';
+    final submittedAt = activity['submittedAt'];
+
+    String formattedDate = '';
+    if (submittedAt != null) {
+      try {
+        final date = DateTime.parse(submittedAt);
+        formattedDate =
+            '${_getMonthName(date.month)} ${date.day}, ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+      } catch (_) {
+        formattedDate = submittedAt.toString();
+      }
+    }
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.check_circle_outline,
+                  color: AppColors.success,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      surveyTitle,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                        color: AppColors.textPrimary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Completed survey',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (formattedDate.isNotEmpty)
+                Text(
+                  formattedDate,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (!isLast) const Divider(height: 1, indent: 16, endIndent: 16),
+      ],
+    );
+  }
+
+  String _getMonthName(int month) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return months[month - 1];
   }
 }

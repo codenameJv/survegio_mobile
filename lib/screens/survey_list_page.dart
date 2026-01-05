@@ -5,6 +5,7 @@ import '../services/auth_service.dart';
 import '../services/survey_service.dart';
 import '../services/eligibility_service.dart';
 import './survey_taking_screen.dart';
+import './submission_receipt_screen.dart';
 
 class SurveyListScreen extends StatefulWidget {
   const SurveyListScreen({super.key});
@@ -59,13 +60,16 @@ class _SurveyListScreenState extends State<SurveyListScreen>
         _surveyService.fetchStudentEvaluationSurveys(),
         _surveyService.fetchStudentClasses(_studentId!),
         _surveyService.fetchStudentSurveyResponses(_studentId!),
-        _surveyService.fetchStudentDepartment(_studentId!),
+        _surveyService.fetchStudentInfo(_studentId!),
       ]);
 
       final allSurveys = results[0] as List<Map<String, dynamic>>;
       final enrolledClasses = results[1] as List<Map<String, dynamic>>;
       final completedResponses = results[2] as List<Map<String, dynamic>>;
-      final department = results[3] as Map<String, dynamic>?;
+      final studentInfo = results[3] as Map<String, dynamic>?;
+
+      final department = studentInfo?['deparment_id'];
+      final yearLevel = studentInfo?['year_level']?.toString();
 
       // Get eligible surveys with eligibility filtering
       final eligibleSurveys = await _eligibilityService.getEligibleSurveys(
@@ -73,6 +77,7 @@ class _SurveyListScreenState extends State<SurveyListScreen>
         allSurveys: allSurveys,
         enrolledClasses: enrolledClasses,
         studentDepartmentId: department?['id']?.toString(),
+        studentYearLevel: yearLevel,
       );
 
       // Separate into pending and completed
@@ -277,7 +282,7 @@ class _SurveyListScreenState extends State<SurveyListScreen>
             ),
             const SizedBox(height: 20),
             Text(
-              isPending ? 'No pending surveys' : 'No completed surveys yet',
+              isPending ? 'No Pending Surveys' : 'No Completed Surveys',
               style: const TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 16,
@@ -287,8 +292,8 @@ class _SurveyListScreenState extends State<SurveyListScreen>
             const SizedBox(height: 8),
             Text(
               isPending
-                  ? "You're all caught up!"
-                  : 'Complete surveys to see them here',
+                  ? 'You have completed all available surveys.'
+                  : 'Completed surveys will appear here.',
               style: const TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 14,
@@ -312,39 +317,67 @@ class _SurveyListScreenState extends State<SurveyListScreen>
   Widget _buildSurveyCard(Map<String, dynamic> survey,
       {required bool isCompleted}) {
     final title = survey['title'] ?? 'Untitled Survey';
-    final instruction = survey['instruction'] ?? '';
     final targetType = survey['target_type'] ?? '';
 
     // Build subtitle based on target type
     String subtitle = '';
     String? teacherId;
+    String? teacherFullName;
     if (targetType == 'class') {
       final targetClass = survey['target_class'];
       final section = targetClass?['section'] ?? '';
       final course = targetClass?['course_id']?['courseCode'] ?? '';
       final teacher = targetClass?['teacher_id'];
       teacherId = teacher?['id']?.toString();
-      final teacherName = teacher != null
-          ? '${teacher['first_name'] ?? ''} ${teacher['last_name'] ?? ''}'
-              .trim()
-          : '';
+      teacherFullName = teacher != null
+          ? '${teacher['first_name'] ?? ''} ${teacher['last_name'] ?? ''}'.trim()
+          : null;
       subtitle =
-          '$course $section${teacherName.isNotEmpty ? ' - $teacherName' : ''}';
+          '$course $section${teacherFullName != null && teacherFullName.isNotEmpty ? ' - $teacherFullName' : ''}';
     } else if (targetType == 'office') {
       final office = survey['target_office'];
       subtitle = office?['name'] ?? 'Office Evaluation';
     }
 
+    // Get deadline info
+    String? deadlineText;
+    bool isUrgent = false;
+    final surveyEnd = survey['survey_end'];
+    if (surveyEnd != null && !isCompleted) {
+      try {
+        final endDate = DateTime.parse(surveyEnd);
+        final now = DateTime.now();
+        final daysLeft = endDate.difference(now).inDays;
+
+        if (daysLeft < 0) {
+          deadlineText = 'Expired';
+          isUrgent = true;
+        } else if (daysLeft == 0) {
+          deadlineText = 'Due today';
+          isUrgent = true;
+        } else if (daysLeft == 1) {
+          deadlineText = 'Due tomorrow';
+          isUrgent = true;
+        } else if (daysLeft <= 3) {
+          deadlineText = 'Due in $daysLeft days';
+          isUrgent = true;
+        } else {
+          deadlineText = 'Due ${_formatDate(endDate)}';
+        }
+      } catch (_) {}
+    }
+
     // Get completion info if completed
     String? completedAt;
+    String? responseId;
     if (isCompleted && survey['response'] != null) {
       final response = survey['response'] as Map<String, dynamic>;
+      responseId = response['id']?.toString();
       final submittedAt = response['submitted_at'];
       if (submittedAt != null) {
         try {
           final date = DateTime.parse(submittedAt);
-          completedAt =
-              '${date.month}/${date.day}/${date.year}';
+          completedAt = _formatDate(date);
         } catch (_) {}
       }
     }
@@ -364,7 +397,37 @@ class _SurveyListScreenState extends State<SurveyListScreen>
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () async {
-            if (!isCompleted) {
+            if (isCompleted) {
+              // Show receipt for completed survey
+              final office = survey['target_office'];
+              final response = survey['response'] as Map<String, dynamic>?;
+              DateTime? submittedDate;
+              if (response?['submitted_at'] != null) {
+                try {
+                  submittedDate = DateTime.parse(response!['submitted_at']);
+                } catch (_) {}
+              }
+
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SubmissionReceiptScreen(
+                    surveyTitle: title,
+                    referenceId: responseId ?? 'N/A',
+                    submittedAt: submittedDate ?? DateTime.now(),
+                    questionsAnswered: 0, // We don't store this
+                    className: subtitle.isNotEmpty ? subtitle : null,
+                    teacherName: teacherFullName,
+                    officeName: office?['name']?.toString(),
+                    evaluationType: targetType,
+                  ),
+                ),
+              );
+            } else {
+              // Open survey for taking
+              final office = survey['target_office'];
+              final officeFullName = office?['name']?.toString();
+
               final result = await Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -372,8 +435,12 @@ class _SurveyListScreenState extends State<SurveyListScreen>
                     surveyId: survey['id'].toString(),
                     surveyTitle: title,
                     classId: survey['target_class_id']?.toString(),
-                    officeId: survey['target_office']?['id']?.toString(),
+                    officeId: office?['id']?.toString(),
                     evaluatedTeacherId: teacherId,
+                    className: subtitle.isNotEmpty ? subtitle : null,
+                    teacherName: teacherFullName,
+                    officeName: officeFullName,
+                    instruction: survey['instruction']?.toString(),
                   ),
                 ),
               );
@@ -460,23 +527,6 @@ class _SurveyListScreenState extends State<SurveyListScreen>
                   ],
                 ),
 
-                // Instruction preview
-                if (instruction.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 18),
-                    child: Text(
-                      instruction,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 13,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-
                 const SizedBox(height: 14),
 
                 // Status row
@@ -502,37 +552,86 @@ class _SurveyListScreenState extends State<SurveyListScreen>
                         ),
                       ),
                       const SizedBox(width: 8),
-                      // Status badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: isCompleted
-                              ? AppColors.success.withAlpha(26)
-                              : AppColors.warning.withAlpha(26),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          isCompleted ? 'Completed' : 'Pending',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: isCompleted
-                                ? AppColors.success
-                                : AppColors.warning,
+                      // Status badge or deadline
+                      if (isCompleted)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: AppColors.success.withAlpha(26),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.check_circle,
+                                size: 14,
+                                color: AppColors.success,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Completed',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.success,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else if (deadlineText != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: isUrgent
+                                ? AppColors.error.withAlpha(26)
+                                : AppColors.warning.withAlpha(26),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.schedule,
+                                size: 14,
+                                color: isUrgent
+                                    ? AppColors.error
+                                    : AppColors.warning,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                deadlineText,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: isUrgent
+                                      ? AppColors.error
+                                      : AppColors.warning,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
                       const Spacer(),
-                      // Completed date
-                      if (completedAt != null)
+                      // Completed date or view receipt hint
+                      if (isCompleted) ...[
                         Text(
-                          completedAt,
+                          completedAt ?? '',
                           style: const TextStyle(
                             fontSize: 12,
                             color: AppColors.textSecondary,
                           ),
                         ),
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.receipt_long,
+                          size: 16,
+                          color: AppColors.textSecondary,
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -542,5 +641,13 @@ class _SurveyListScreenState extends State<SurveyListScreen>
         ),
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    final months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 }
