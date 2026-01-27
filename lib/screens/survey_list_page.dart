@@ -408,6 +408,29 @@ class _SurveyListScreenState extends State<SurveyListScreen>
                 } catch (_) {}
               }
 
+              // Get student information from auth service
+              final authService =
+                  Provider.of<AuthService>(context, listen: false);
+              final currentUser = authService.currentUser;
+              final student = currentUser?['student'];
+              String? studentName;
+              String? studentNumber;
+              String? studentProgram;
+
+              if (student is Map<String, dynamic>) {
+                final studentFirstName =
+                    student['first_name']?.toString() ?? '';
+                final studentLastName = student['last_name']?.toString() ?? '';
+                studentName = '$studentFirstName $studentLastName'.trim();
+                if (studentName.isEmpty) studentName = null;
+                studentNumber = student['student_number']?.toString();
+
+                final departmentField = student['deparment_id'];
+                if (departmentField is Map<String, dynamic>) {
+                  studentProgram = departmentField['name']?.toString();
+                }
+              }
+
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -420,6 +443,9 @@ class _SurveyListScreenState extends State<SurveyListScreen>
                     teacherName: teacherFullName,
                     officeName: office?['name']?.toString(),
                     evaluationType: targetType,
+                    studentName: studentName,
+                    studentId: studentNumber,
+                    studentProgram: studentProgram,
                   ),
                 ),
               );

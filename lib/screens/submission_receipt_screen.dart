@@ -11,6 +11,11 @@ class SubmissionReceiptScreen extends StatelessWidget {
   final String? officeName;
   final String evaluationType;
 
+  // Student information
+  final String? studentName;
+  final String? studentId;
+  final String? studentProgram;
+
   const SubmissionReceiptScreen({
     super.key,
     required this.surveyTitle,
@@ -21,6 +26,9 @@ class SubmissionReceiptScreen extends StatelessWidget {
     this.teacherName,
     this.officeName,
     required this.evaluationType,
+    this.studentName,
+    this.studentId,
+    this.studentProgram,
   });
 
   @override
@@ -33,45 +41,53 @@ class SubmissionReceiptScreen extends StatelessWidget {
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Column(
             children: [
               Expanded(
                 child: SingleChildScrollView(
                   child: Column(
                     children: [
+                      // Success header row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppColors.success.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.check_circle,
+                              size: 28,
+                              color: AppColors.success,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Survey Submitted',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              const Text(
+                                'Your response has been recorded',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: 20),
-                      // Success icon
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: AppColors.success.withValues(alpha: 0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.check_circle,
-                          size: 64,
-                          color: AppColors.success,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      const Text(
-                        'Survey Submitted',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Your response has been recorded',
-                        style: TextStyle(
-                          fontSize: 15,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 32),
 
                       // Receipt card
                       Container(
@@ -83,10 +99,11 @@ class SubmissionReceiptScreen extends StatelessWidget {
                         ),
                         child: Column(
                           children: [
-                            // Header
+                            // Reference Number Header
                             Container(
                               width: double.infinity,
-                              padding: const EdgeInsets.all(16),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 14, horizontal: 16),
                               decoration: BoxDecoration(
                                 color: AppColors.surfaceGreen,
                                 borderRadius: const BorderRadius.only(
@@ -95,101 +112,83 @@ class SubmissionReceiptScreen extends StatelessWidget {
                                 ),
                               ),
                               child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.primaryGreen
-                                          .withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: const Icon(
-                                      Icons.receipt_long,
-                                      color: AppColors.primaryGreen,
-                                      size: 20,
+                                  const Text(
+                                    'Reference No.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textSecondary,
+                                      fontWeight: FontWeight.w500,
                                     ),
                                   ),
-                                  const SizedBox(width: 12),
-                                  const Expanded(
-                                    child: Text(
-                                      'Details',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.primaryGreen,
-                                      ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '#$referenceId',
+                                    style: const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.primaryGreen,
+                                      fontFamily: 'monospace',
+                                      letterSpacing: 1,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
 
-                            // Details
-                            Padding(
-                              padding: const EdgeInsets.all(20),
-                              child: Column(
+                            // Student Information Section
+                            if (studentName != null ||
+                                studentId != null ||
+                                studentProgram != null)
+                              _buildSection(
+                                title: 'STUDENT INFORMATION',
+                                icon: Icons.person_outline,
                                 children: [
-                                  _buildDetailRow(
-                                    label: 'Reference No.',
-                                    value: referenceId,
-                                    isHighlighted: true,
-                                  ),
-                                  const Divider(height: 24),
-                                  _buildDetailRow(
-                                    label: 'Survey',
-                                    value: surveyTitle,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  _buildDetailRow(
-                                    label: 'Type',
-                                    value: evaluationType == 'class'
-                                        ? 'Class Evaluation'
-                                        : 'Office Evaluation',
-                                  ),
-                                  if (evaluationType == 'class' &&
-                                      className != null) ...[
-                                    const SizedBox(height: 16),
-                                    _buildDetailRow(
-                                      label: 'Class',
-                                      value: className!,
-                                    ),
-                                  ],
-                                  if (evaluationType == 'class' &&
-                                      teacherName != null) ...[
-                                    const SizedBox(height: 16),
-                                    _buildDetailRow(
-                                      label: 'Instructor',
-                                      value: teacherName!,
-                                    ),
-                                  ],
-                                  if (evaluationType == 'office' &&
-                                      officeName != null) ...[
-                                    const SizedBox(height: 16),
-                                    _buildDetailRow(
-                                      label: 'Office',
-                                      value: officeName!,
-                                    ),
-                                  ],
-                                  if (questionsAnswered > 0) ...[
-                                    const SizedBox(height: 16),
-                                    _buildDetailRow(
-                                      label: 'Questions Answered',
-                                      value: questionsAnswered.toString(),
-                                    ),
-                                  ],
-                                  const SizedBox(height: 16),
-                                  _buildDetailRow(
-                                    label: 'Submitted',
-                                    value: _formatDateTime(submittedAt),
-                                  ),
+                                  if (studentName != null)
+                                    _buildInfoRow('Name', studentName!),
+                                  if (studentId != null)
+                                    _buildInfoRow('Student ID', studentId!),
+                                  if (studentProgram != null)
+                                    _buildInfoRow('Program', studentProgram!),
                                 ],
                               ),
+
+                            // Survey Information Section
+                            _buildSection(
+                              title: 'SURVEY INFORMATION',
+                              icon: Icons.assignment_outlined,
+                              children: [
+                                _buildInfoRow('Survey', surveyTitle),
+                                _buildInfoRow(
+                                  'Type',
+                                  evaluationType == 'class'
+                                      ? 'Class Evaluation'
+                                      : 'Office Evaluation',
+                                ),
+                                if (evaluationType == 'class' &&
+                                    className != null)
+                                  _buildInfoRow('Course', className!),
+                                if (evaluationType == 'class' &&
+                                    teacherName != null &&
+                                    teacherName!.isNotEmpty)
+                                  _buildInfoRow('Instructor', teacherName!),
+                                if (evaluationType == 'office' &&
+                                    officeName != null)
+                                  _buildInfoRow('Office', officeName!),
+                                if (questionsAnswered > 0)
+                                  _buildInfoRow('Questions Answered',
+                                      questionsAnswered.toString()),
+                                _buildInfoRow(
+                                    'Submitted At', _formatDateTime(submittedAt)),
+                              ],
                             ),
 
                             // Footer
                             Container(
                               width: double.infinity,
-                              padding: const EdgeInsets.all(16),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 12, horizontal: 16),
                               decoration: BoxDecoration(
                                 color: AppColors.inputFill,
                                 borderRadius: const BorderRadius.only(
@@ -202,14 +201,14 @@ class SubmissionReceiptScreen extends StatelessWidget {
                                 children: [
                                   Icon(
                                     Icons.verified,
-                                    size: 16,
+                                    size: 14,
                                     color: AppColors.success,
                                   ),
-                                  const SizedBox(width: 8),
+                                  const SizedBox(width: 6),
                                   Text(
-                                    'Recorded',
+                                    'Response Recorded',
                                     style: TextStyle(
-                                      fontSize: 13,
+                                      fontSize: 12,
                                       fontWeight: FontWeight.w500,
                                       color: AppColors.success,
                                     ),
@@ -220,18 +219,17 @@ class SubmissionReceiptScreen extends StatelessWidget {
                           ],
                         ),
                       ),
-
                     ],
                   ),
                 ),
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
 
               // Done button
               SizedBox(
                 width: double.infinity,
-                height: 52,
+                height: 48,
                 child: FilledButton(
                   onPressed: () {
                     Navigator.of(context).pop();
@@ -257,39 +255,80 @@ class SubmissionReceiptScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildDetailRow({
-    required String label,
-    required String value,
-    bool isHighlighted = false,
+  Widget _buildSection({
+    required String title,
+    required IconData icon,
+    required List<Widget> children,
   }) {
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          width: 130,
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppColors.textSecondary,
-            ),
+        // Section header
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 14,
+                color: AppColors.textSecondary,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
           ),
         ),
-        Expanded(
-          child: Text(
-            value,
-            style: TextStyle(
-              fontSize: isHighlighted ? 15 : 14,
-              fontWeight: isHighlighted ? FontWeight.w700 : FontWeight.w500,
-              color: isHighlighted
-                  ? AppColors.primaryGreen
-                  : AppColors.textPrimary,
-              fontFamily: isHighlighted ? 'monospace' : null,
-            ),
-            textAlign: TextAlign.right,
+
+        // Section content
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+          child: Column(
+            children: children,
           ),
         ),
+
+        // Divider
+        const Divider(height: 1, indent: 16, endIndent: 16),
       ],
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -302,7 +341,7 @@ class SubmissionReceiptScreen extends StatelessWidget {
     final period = dateTime.hour >= 12 ? 'PM' : 'AM';
     final displayHour = hour == 0 ? 12 : hour;
 
-    return '${months[dateTime.month - 1]} ${dateTime.day}, ${dateTime.year} '
-        'at ${displayHour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')} $period';
+    return '${months[dateTime.month - 1]} ${dateTime.day}, ${dateTime.year}, '
+        '${displayHour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')} $period';
   }
 }

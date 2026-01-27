@@ -896,7 +896,29 @@ class _SurveyTakingScreenState extends State<SurveyTakingScreen> {
 
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
-      final studentId = authService.currentUser?['student']?['id']?.toString();
+      final currentUser = authService.currentUser;
+      final student = currentUser?['student'];
+      String? studentId;
+      String? studentName;
+      String? studentNumber;
+      String? studentProgram;
+
+      if (student is Map<String, dynamic>) {
+        studentId = student['id']?.toString();
+        final studentFirstName = student['first_name']?.toString() ?? '';
+        final studentLastName = student['last_name']?.toString() ?? '';
+        studentName = '$studentFirstName $studentLastName'.trim();
+        if (studentName.isEmpty) studentName = null;
+        studentNumber = student['student_number']?.toString();
+
+        final departmentField = student['deparment_id'];
+        if (departmentField is Map<String, dynamic>) {
+          studentProgram = departmentField['name']?.toString();
+        }
+      } else if (student != null) {
+        // student might just be an ID
+        studentId = student.toString();
+      }
 
       if (studentId == null) {
         throw Exception('Student ID not found');
@@ -938,6 +960,9 @@ class _SurveyTakingScreenState extends State<SurveyTakingScreen> {
               teacherName: widget.teacherName,
               officeName: widget.officeName,
               evaluationType: widget.classId != null ? 'class' : 'office',
+              studentName: studentName,
+              studentId: studentNumber,
+              studentProgram: studentProgram,
             ),
           ),
         );
