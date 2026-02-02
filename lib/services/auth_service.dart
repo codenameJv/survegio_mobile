@@ -200,14 +200,16 @@ class AuthService extends ChangeNotifier {
 
     Map<String, dynamic>? studentRecord;
 
+    // Fields to fetch for student record (including department and year level)
+    const studentFields = 'id,student_number,first_name,last_name,middle_name,email,user_id,year_level,deparment_id.id,deparment_id.name.programCode,deparment_id.name.programName,class_id';
+
     // Strategy 1: Search by user_id (direct link in students table)
     try {
       final res = await _dio.get(
         '/items/students',
         queryParameters: {
           'filter[user_id][_eq]': userId,
-          'fields':
-              'id,student_number,first_name,last_name,middle_name,email,user_id,deparment_id,class_id',
+          'fields': studentFields,
           'limit': '1',
         },
       );
@@ -227,8 +229,7 @@ class AuthService extends ChangeNotifier {
           '/items/students',
           queryParameters: {
             'filter[email][_eq]': userEmail,
-            'fields':
-                'id,student_number,first_name,last_name,middle_name,email,user_id,deparment_id,class_id',
+            'fields': studentFields,
             'limit': '1',
           },
         );
@@ -250,8 +251,7 @@ class AuthService extends ChangeNotifier {
           queryParameters: {
             'filter[first_name][_eq]': firstName,
             'filter[last_name][_eq]': lastName,
-            'fields':
-                'id,student_number,first_name,last_name,middle_name,email,user_id,deparment_id,class_id',
+            'fields': studentFields,
             'limit': '1',
           },
         );

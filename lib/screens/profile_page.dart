@@ -40,6 +40,17 @@ class _ProfilePageState extends State<ProfilePage> {
         final String studentNumber =
             user['student']?['student_number'] ?? 'Not available';
 
+        // Student academic info
+        final String yearLevel =
+            user['student']?['year_level'] ?? 'Not available';
+        final department = user['student']?['deparment_id'];
+        final String departmentName = department is Map
+            ? (department['name']?['programName'] ?? 'Not available')
+            : 'Not available';
+        final String programCode = department is Map
+            ? (department['name']?['programCode'] ?? '')
+            : '';
+
         // Avatar
         final String avatarUrl = user['avatar'] != null
             ? '$directusUrl/assets/${user['avatar']['id'] ?? user['avatar']}'
@@ -164,7 +175,60 @@ class _ProfilePageState extends State<ProfilePage> {
 
                 const SizedBox(height: 24),
 
-                // Info Section
+                // Student Information Section
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.divider),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Student Information',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Your academic details',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      _buildInfoRow(
+                        icon: Icons.badge_outlined,
+                        label: 'Student Number',
+                        value: studentNumber,
+                      ),
+                      const Divider(height: 32),
+                      _buildInfoRow(
+                        icon: Icons.business_outlined,
+                        label: 'Department',
+                        value: departmentName,
+                        subtitle: programCode.isNotEmpty ? programCode : null,
+                      ),
+                      const Divider(height: 32),
+                      _buildInfoRow(
+                        icon: Icons.school_outlined,
+                        label: 'Year Level',
+                        value: yearLevel,
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Account Information Section
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
@@ -189,12 +253,6 @@ class _ProfilePageState extends State<ProfilePage> {
                         icon: Icons.person_outline,
                         label: 'Full Name',
                         value: fullName,
-                      ),
-                      const Divider(height: 32),
-                      _buildInfoRow(
-                        icon: Icons.badge_outlined,
-                        label: 'Student Number',
-                        value: studentNumber,
                       ),
                       const Divider(height: 32),
                       _buildInfoRow(
@@ -424,6 +482,7 @@ class _ProfilePageState extends State<ProfilePage> {
     required IconData icon,
     required String label,
     required String value,
+    String? subtitle,
   }) {
     return Row(
       children: [
@@ -460,6 +519,16 @@ class _ProfilePageState extends State<ProfilePage> {
                   color: AppColors.textPrimary,
                 ),
               ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
             ],
           ),
         ),

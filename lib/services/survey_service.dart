@@ -136,6 +136,7 @@ class SurveyService {
             'office_id.id',
             'office_id.name',
             'students.students_id',
+            'student_course_assignments', // Fair distribution: which courses each student is assigned to
             'classes.classes_id.*',  // Get all class fields
             'classes.classes_id.course_id.*',
             'classes.classes_id.teacher_id.*',

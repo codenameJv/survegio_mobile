@@ -96,31 +96,93 @@ class EligibilityService {
         log('EligibilityService: Survey "${survey['title']}" has ${surveyClasses.length} classes',
             name: 'EligibilityService');
 
-        // Extract survey class IDs (with deduplication like Vue.js app)
+        // Extract survey class IDs and their course IDs (with deduplication like Vue.js app)
         final surveyClassIds = <String>{};
+        final classIdToCourseId = <String, String>{}; // Map class ID to course ID
         for (final surveyClass in surveyClasses) {
           final classData = surveyClass['classes_id'];
           String? classId;
+          String? courseId;
 
           if (classData is Map) {
             classId = classData['id']?.toString();
+            // Extract course ID from class data
+            final courseData = classData['course_id'];
+            if (courseData is Map) {
+              courseId = courseData['id']?.toString();
+            } else if (courseData != null) {
+              courseId = courseData.toString();
+            }
           } else if (classData != null) {
             classId = classData.toString();
           }
 
           if (classId != null) {
             surveyClassIds.add(classId);
+            if (courseId != null) {
+              classIdToCourseId[classId] = courseId;
+            }
           }
         }
 
         log('EligibilityService: Survey class IDs: $surveyClassIds',
             name: 'EligibilityService');
 
-        // Find matching classes (student enrolled AND in survey)
+        // Check for fair distribution: student_course_assignments
+        // This field contains which courses each student is specifically assigned to evaluate
+        final studentCourseAssignments = survey['student_course_assignments'] as List?;
+        Set<String>? assignedCourseIds;
+
+        if (studentCourseAssignments != null && studentCourseAssignments.isNotEmpty) {
+          // Find this student's course assignments
+          final studentIdNum = int.tryParse(studentId);
+          for (final assignment in studentCourseAssignments) {
+            final assignmentStudentId = assignment['studentId'];
+            final matches = (studentIdNum != null && assignmentStudentId == studentIdNum) ||
+                assignmentStudentId?.toString() == studentId;
+
+            if (matches) {
+              final courseIds = assignment['courseIds'] as List? ?? [];
+              assignedCourseIds = courseIds.map((id) => id.toString()).toSet();
+              log('EligibilityService: Fair distribution - student assigned to courses: $assignedCourseIds',
+                  name: 'EligibilityService');
+              break;
+            }
+          }
+
+          // If fair distribution exists but student has no assignments, skip
+          if (assignedCourseIds == null) {
+            log('EligibilityService: Skipping survey "${survey['title']}" - student has no course assignments in fair distribution',
+                name: 'EligibilityService');
+            continue;
+          }
+        }
+
+        // Find matching classes (student enrolled AND in survey AND assigned via fair distribution)
         for (final enrolledClass in enrolledClasses) {
           final classId = enrolledClass['id']?.toString();
 
           if (classId != null && surveyClassIds.contains(classId)) {
+            // If fair distribution is active, check if this class's course is assigned
+            if (assignedCourseIds != null) {
+              // Get course ID from enrolled class or from our mapping
+              String? classCourseId;
+              final enrolledCourseData = enrolledClass['course_id'];
+              if (enrolledCourseData is Map) {
+                classCourseId = enrolledCourseData['id']?.toString();
+              } else if (enrolledCourseData != null) {
+                classCourseId = enrolledCourseData.toString();
+              }
+              // Fallback to mapping from survey data
+              classCourseId ??= classIdToCourseId[classId];
+
+              if (classCourseId == null || !assignedCourseIds.contains(classCourseId)) {
+                log('EligibilityService: Skipping class $classId - course $classCourseId not in assigned courses',
+                    name: 'EligibilityService');
+                continue;
+              }
+            }
+
             // Create unique key to prevent duplicates
             final evaluationKey = 'class-$surveyId-$classId';
 
